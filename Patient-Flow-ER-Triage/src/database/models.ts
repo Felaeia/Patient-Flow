@@ -49,3 +49,26 @@ export interface Assessment { id: number; patientId: string; esi: number; notes:
 export interface QueueEntry { id: number; patientId: string; status: "triage" | "waiting" | "completed"; priority: number | null; enteredTick: number; enteredAt: string; exitedAt: string | null }
 export interface Assignment { id: number; patientId: string; bayId: number | null; staffId: string | null; assignedAt: string; releasedAt: string | null }
 export interface Notification { id: number; title: string; message: string; type: string; isRead: 0 | 1; createdAt: string }
+
+export type AdminRole = "admin" | "registration" | "clinical" | "viewer";
+export interface AdminActor { id: string; role: AdminRole }
+export interface PatientRecord {
+  id: number; patientCode: string; firstName: string | null; middleName: string | null;
+  lastName: string | null; dateOfBirth: string | null; sex: string; contactNumber: string | null;
+  emergencyContact: string | null; isUnidentified: 0 | 1; archivedAt: string | null; createdAt: string; updatedAt: string;
+  encounterCount?: number; currentStatus?: string | null;
+}
+export interface AdminBay extends Bay {
+  code: string; type: string; location: string; operationalStatus: "Active" | "Maintenance" | "Out of Service";
+  occupancyStatus: "Available" | "Occupied" | "Reserved" | "Cleaning"; createdAt: string;
+}
+export interface AdminStaff extends StaffMember {
+  employeeCode: string; firstName: string | null; lastName: string | null; department: string; shift: string;
+  employmentStatus: "Active" | "Inactive"; availability: "Available" | "Busy" | "On Break" | "Off Duty"; createdAt: string;
+}
+export interface ResourceRecord {
+  id: number; code: string; name: string; category: string; kind: "Consumable" | "Reusable";
+  quantityTotal: number; quantityAvailable: number; unit: string; location: string;
+  status: "Available" | "In Use" | "Maintenance" | "Unavailable"; archivedAt: string | null;
+  createdAt: string; updatedAt: string;
+}

@@ -1,10 +1,11 @@
 import { Link, usePathname } from "expo-router";
-import { HeartPulse, PanelLeftClose, PanelLeftOpen, X } from "lucide-react-native";
+import { ChevronDown, ChevronRight, HeartPulse, PanelLeftClose, PanelLeftOpen, ShieldCheck, X } from "lucide-react-native";
 import { ComponentProps, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { sidebarNavigation } from "./sidebarNavigation";
+import { adminNavigation, sidebarNavigation } from "./sidebarNavigation";
+import { useAuth } from "../auth/AuthProvider";
 
-type Destination = (typeof sidebarNavigation)[number];
+type Destination = (typeof sidebarNavigation)[number] | (typeof adminNavigation)[number];
 
 // React Native Web Pressable dispatches clicks through onPress.
 function NavigationPressable({ onClick, onPress, ...props }: ComponentProps<typeof Pressable> & {
@@ -67,6 +68,9 @@ export function Sidebar({ collapsed = false, onToggle, onClose }: {
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const { can } = useAuth();
+  const authorized = can("admin:view");
+  const [adminOpen, setAdminOpen] = useState(pathname.startsWith("/admin"));
   const ControlIcon = onClose ? X : collapsed ? PanelLeftOpen : PanelLeftClose;
   const controlLabel = onClose ? "Close navigation" : collapsed ? "Expand sidebar" : "Collapse sidebar";
   const links = (
@@ -80,6 +84,23 @@ export function Sidebar({ collapsed = false, onToggle, onClose }: {
           onNavigate={onClose}
         />
       ))}
+      {authorized && (
+        <View className="mt-2 border-t border-slate-700 pt-2">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Admin navigation"
+            accessibilityState={{ expanded: adminOpen }}
+            onPress={() => setAdminOpen((value) => !value)}
+            className={`min-h-12 flex-row items-center gap-3 rounded-xl px-3 ${pathname.startsWith("/admin") ? "bg-slate-800" : ""}`}
+          >
+            <ShieldCheck size={20} color={pathname.startsWith("/admin") ? "#5eead4" : "#cbd5e1"} />
+            {!collapsed && <><Text className="flex-1 text-sm font-bold text-slate-200">Admin</Text>{adminOpen ? <ChevronDown size={17} color="#cbd5e1" /> : <ChevronRight size={17} color="#cbd5e1" />}</>}
+          </Pressable>
+          {(adminOpen || collapsed) && <View className={collapsed ? "gap-1" : "ml-3 gap-1 border-l border-slate-700 pl-2"}>
+            {adminNavigation.map((destination) => <SidebarItem key={destination.href} destination={destination} active={pathname === destination.href || pathname.startsWith(`${destination.href}/`)} collapsed={collapsed} onNavigate={onClose} />)}
+          </View>}
+        </View>
+      )}
     </View>
   );
 

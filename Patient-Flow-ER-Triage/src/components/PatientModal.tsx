@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, ScrollView, SafeAreaView } from 'react-native';
-import { X, HeartPulse, Droplets, Activity, Thermometer, Zap, Clock } from 'lucide-react-native';
+import { X, HeartPulse, Droplets, Activity, Thermometer, Zap } from 'lucide-react-native';
 import VitalBadge from './common/VitalBadge';
 
 const ESI_COLORS: Record<number, string> = {

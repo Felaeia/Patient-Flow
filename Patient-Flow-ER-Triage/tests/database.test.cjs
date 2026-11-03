@@ -17,6 +17,7 @@ require.extensions[".ts"] = (module, filename) => {
 const { initializeDatabase } = require("../src/database/schema.ts");
 const { repositories } = require("../src/database/repositories.ts");
 const { createPatientFlow } = require("../src/simulation/patientFlow.ts");
+const { createAdminService } = require("../src/database/adminService.ts");
 
 function connect(filename) {
   const sqlite = new DatabaseSync(filename, { enableForeignKeyConstraints: false });
@@ -49,7 +50,7 @@ test("initialization, CRUD, transactional patient flow, and restart persistence"
       assert.ok(tables.some((table) => table.name === name));
     }
     assert.equal((await db.getFirstAsync("PRAGMA foreign_keys")).foreign_keys, 1);
-    assert.equal((await db.getFirstAsync("PRAGMA user_version")).user_version, 1);
+    assert.equal((await db.getFirstAsync("PRAGMA user_version")).user_version, 2);
 
     const flow = createPatientFlow(db);
     const repo = repositories(db);
@@ -58,11 +59,11 @@ test("initialization, CRUD, transactional patient flow, and restart persistence"
     assert.equal((await repo.patients.byId(input.id)).name, input.name);
     assert.equal((await repo.queue.active())[0].status, "triage");
     await assert.rejects(repo.assessments.create("missing", 1), /FOREIGN KEY/);
-    await assert.rejects(flow.triage(input.id, 6), /CHECK/);
+    await assert.rejects(flow.triage(input.id, 6, { id: "admin", role: "admin" }), /CHECK/);
     assert.equal((await repo.patients.byId(input.id)).status, "triage");
     assert.equal((await repo.assessments.byPatient(input.id)).length, 0);
 
-    await flow.triage(input.id, 4);
+    await flow.triage(input.id, 4, { id: "clinician", role: "clinical" });
     assert.equal((await repo.assessments.latest(input.id)).esi, 4);
     assert.equal((await repo.queue.active())[0].priority, 4);
     assert.equal((await repo.dashboard(7)).averageWait, 7);
@@ -82,7 +83,7 @@ test("initialization, CRUD, transactional patient flow, and restart persistence"
     assert.equal((await repo.staff.available()).length, 4);
     assert.equal((await repo.queue.active()).length, 0);
     await flow.register({ ...input, id: "P-other" });
-    await flow.triage("P-other", 3);
+    await flow.triage("P-other", 3, { id: "clinician", role: "clinical" });
     await assert.rejects(repo.assignments.bay("P-other", 1), /UNIQUE/);
     await assert.rejects(flow.assign("P-other", 1, []), /unavailable/);
     await flow.discharge(input.id);
@@ -132,6 +133,50 @@ test("initialization, CRUD, transactional patient flow, and restart persistence"
     assert.equal(persisted.events.length, tick.events.length);
     assert.equal(persisted.patients.find((patient) => patient.id === input.id).status, "discharged");
     assert.equal((await repositories(db).notifications.all()).length, 2);
+    assert.deepEqual(await db.getAllAsync("PRAGMA foreign_key_check"), []);
+  } finally {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("admin management enforces permissions, validation, history, and operational safeguards", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "triflow-admin-"));
+  const filename = path.join(dir, "triflow.db");
+  const db = connect(filename);
+  try {
+    await initializeDatabase(db);
+    const admin = createAdminService(db, { id: "test-admin", role: "admin" });
+    const viewer = createAdminService(db, { id: "test-viewer", role: "viewer" });
+    assert.throws(() => viewer.patients.list(), /Forbidden/);
+
+    const patientId = await admin.patients.create({ firstName: "Morgan", lastName: "Test", sex: "X", chiefComplaint: "Headache" });
+    const patientPage = await admin.patients.list("Morgan");
+    assert.equal(patientPage.total, 1);
+    assert.equal(patientPage.rows[0].currentStatus, "triage");
+    const details = await admin.patients.details(patientId);
+    assert.equal(details[1].length, 1);
+    assert.equal(details[2].length, 0);
+    await admin.patients.update(patientId, { patientCode: patientPage.rows[0].patientCode, firstName: "Morgan", lastName: "Updated", sex: "X" });
+    await admin.patients.createEncounter(patientId, "Return visit");
+    assert.equal((await admin.patients.details(patientId))[1].length, 2);
+    assert.equal((await admin.patients.list("Updated")).total, 1);
+
+    await admin.bays.save(null, { code: "BAY-99", name: "Isolation 99", type: "Isolation", location: "Zone Z", operationalStatus: "Active", occupancyStatus: "Available" });
+    assert.equal((await admin.bays.list("BAY-99")).total, 1);
+    const encounter = await db.getFirstAsync("SELECT operationalPatientId FROM EREncounters WHERE patientRecordId=?", patientId);
+    await db.runAsync("INSERT INTO PatientAssignments(patientId,bayId) VALUES (?,1)", encounter.operationalPatientId);
+    await assert.rejects(admin.bays.save(1, { code: "BAY-01", name: "Bay 1", type: "General", location: "ED", operationalStatus: "Out of Service", occupancyStatus: "Available" }), /Transfer/);
+
+    await admin.staff.save(null, { employeeCode: "EMP-99", firstName: "Ari", lastName: "Nurse", role: "Nurse", department: "Emergency Department", shift: "Day", availability: "Available", employmentStatus: "Active" });
+    await assert.rejects(admin.staff.save(null, { employeeCode: "EMP-99", firstName: "Duplicate", lastName: "Code", role: "Nurse", department: "ED", shift: "Day", availability: "Available", employmentStatus: "Active" }), /UNIQUE/);
+
+    await admin.resources.save(null, { code: "RES-01", name: "Wheelchair", category: "Equipment", kind: "Reusable", quantityTotal: 4, quantityAvailable: 4, unit: "units", location: "Storage", status: "Available" }, "Opening balance");
+    const resource = (await admin.resources.list("Wheelchair")).rows[0];
+    await admin.resources.save(resource.id, { ...resource, quantityAvailable: 3 }, "Deployed to triage");
+    await assert.rejects(admin.resources.save(resource.id, { ...resource, quantityAvailable: 5 }, "Invalid"), /between zero/);
+    assert.equal((await db.getAllAsync("SELECT * FROM ResourceTransactions WHERE resourceId=?", resource.id)).length, 2);
+    assert.ok((await db.getAllAsync("SELECT * FROM AuditLogs")).length >= 5);
     assert.deepEqual(await db.getAllAsync("PRAGMA foreign_key_check"), []);
   } finally {
     db.close();

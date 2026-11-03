@@ -53,13 +53,15 @@ export function repositories(db: Connection) {
       all: () => db.getAllAsync<Bay>("SELECT * FROM TreatmentBays ORDER BY id"),
       available: () => db.getAllAsync<Bay>("SELECT * FROM TreatmentBays WHERE status='available' ORDER BY id"),
       update: (id: number, status: Bay["status"]) =>
-        db.runAsync("UPDATE TreatmentBays SET status=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?", status, id),
+        db.runAsync(`UPDATE TreatmentBays SET status=?, occupancyStatus=CASE ? WHEN 'occupied' THEN 'Occupied' WHEN 'available' THEN 'Available' ELSE occupancyStatus END,
+          updatedAt=CURRENT_TIMESTAMP WHERE id=?`, status, status, id),
     },
     staff: {
       all: () => db.getAllAsync<StaffMember>(`${staffQuery} ORDER BY s.id`),
       available: () => db.getAllAsync<StaffMember>(`${staffQuery} WHERE s.status='Idle' ORDER BY s.id`),
       update: (id: string, status: StaffMember["status"]) =>
-        db.runAsync("UPDATE Staff SET status=?, updatedAt=CURRENT_TIMESTAMP WHERE id=?", status, id),
+        db.runAsync(`UPDATE Staff SET status=?, availability=CASE ? WHEN 'Busy' THEN 'Busy' WHEN 'Idle' THEN 'Available' ELSE availability END,
+          updatedAt=CURRENT_TIMESTAMP WHERE id=?`, status, status, id),
     },
     assignments: {
       bay: (patientId: string, bayId: number) =>

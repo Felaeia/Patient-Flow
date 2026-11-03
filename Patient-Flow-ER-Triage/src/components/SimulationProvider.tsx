@@ -4,6 +4,7 @@ import { Pressable, Text, View } from "react-native";
 import { getPatientFlow } from "../database/open";
 import type { FlowSnapshot } from "../simulation/patientFlow";
 import { PatientModal } from "./PatientModal";
+import { useAuth } from "../auth/AuthProvider";
 
 type SimulationView = FlowSnapshot & {
   handleSelectPatient: (id: string | null) => void;
@@ -17,6 +18,7 @@ export function SimulationProvider({ children }: PropsWithChildren) {
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const { actor } = useAuth();
 
   useEffect(() => {
     let active = true;
@@ -54,7 +56,7 @@ export function SimulationProvider({ children }: PropsWithChildren) {
   async function handleTriage(id: string, esi: number) {
     try {
       const flow = await getPatientFlow();
-      setSnapshot(await flow.triage(id, esi));
+      setSnapshot(await flow.triage(id, esi, actor));
     } catch (cause) {
       setError(`Could not save triage. ${String(cause)}`);
     }

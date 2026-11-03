@@ -1,6 +1,7 @@
-import type { Bay, FlowEvent, Patient } from "../database/models";
+import type { AdminActor, Bay, FlowEvent, Patient } from "../database/models";
 import { repositories } from "../database/repositories";
 import { transaction, type Connection } from "../database/schema";
+import { requirePermission } from "../auth/permissions";
 
 type Disposition = "discharged" | "admitted";
 type PatientInput = Omit<Patient, "status" | "arrivalTs" | "triageStartTs" | "esi" | "waitStartTs" | "bedId" | "treatmentProgress">;
@@ -102,7 +103,8 @@ export function createPatientFlow(db: Connection) {
       await register(input, tick);
       return snapshot(tick);
     }),
-    triage: (id: string, esi: number) => atomic(async () => {
+    triage: (id: string, esi: number, actor: AdminActor) => atomic(async () => {
+      requirePermission(actor, "clinical:triage");
       const { tick } = await clock();
       await triage(id, esi, tick);
       return snapshot(tick);
