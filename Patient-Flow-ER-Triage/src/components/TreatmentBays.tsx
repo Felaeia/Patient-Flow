@@ -1,3 +1,4 @@
+import { localMode } from "../api/client";
 import type { Bay } from "../database/models";
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
@@ -123,13 +124,13 @@ export function TreatmentBays({ beds, treatmentPatients, staff, onSelect }: any)
                   ))
                 ) : (
                   <Text className="text-[10px] text-slate-400">
-                    auto-assigning staff...
+                    {localMode ? "Auto-assigning staff…" : "No staff assigned"}
                   </Text>
                 )}
               </View>
 
               {/* Progress Bar */}
-              <View className="mt-3 flex flex-col gap-1">
+              {localMode && <View className="mt-3 flex flex-col gap-1">
                 <View className="flex flex-row justify-between">
                   <Text className="text-[10px] text-slate-500">Treatment</Text>
                   <Text className="text-[10px] text-slate-500 tabular-nums">
@@ -150,7 +151,7 @@ export function TreatmentBays({ beds, treatmentPatients, staff, onSelect }: any)
                 <Text className="mt-1 text-[10px] text-slate-400">
                   Est {patient.esi ? ESI_TREATMENT_TIME[patient.esi] : 30}s â€¢ x1.35 with staff
                 </Text>
-              </View>
+              </View>}
 
             </TouchableOpacity>
           );

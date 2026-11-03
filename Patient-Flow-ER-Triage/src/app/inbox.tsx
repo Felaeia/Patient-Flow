@@ -3,7 +3,7 @@ import { TriageInbox } from "../components/TriageInbox";
 import { useSimulation } from "../components/SimulationProvider";
 
 export default function InboxPage() {
-  const { patients, simTime, handleSelectPatient, handleTriage } = useSimulation();
+  const { patients, simTime, handleSelectPatient, handleTriage, busy } = useSimulation();
   return (
     <ModulePage title="Inbox">
       <TriageInbox
@@ -11,6 +11,7 @@ export default function InboxPage() {
         simTime={simTime}
         onSelect={handleSelectPatient}
         onTriage={handleTriage}
+        busy={busy}
       />
     </ModulePage>
   );

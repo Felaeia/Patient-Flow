@@ -1,3 +1,4 @@
+import { localMode } from "../api/client";
 import React from 'react';
 import { View, Text, ScrollView } from 'react-native';
 import { Activity } from 'lucide-react-native';
@@ -42,7 +43,7 @@ export function EventLog({ events }: any) {
               className={`rounded-xl px-3 py-2 border flex flex-row items-start ${containerStyle}`}
             >
               <Text className="font-mono text-[10px] text-slate-600 mr-2 mt-[1px]">
-                T+{n.ts}s
+                {localMode ? `T+${n.ts}s` : new Date(n.ts * 1000).toLocaleTimeString()}
               </Text>
               <Text className={`text-[11px] leading-[15px] flex-1 ${textStyle}`}>
                 <Text className="font-semibold">{n.category} · </Text>{n.text} ({n.type})

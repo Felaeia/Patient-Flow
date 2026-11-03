@@ -1,3 +1,4 @@
+import { localMode } from "../api/client";
 import { BedDouble, ClipboardList, Clock, HeartPulse, LogIn, LogOut, Users } from "lucide-react-native";
 import { ScrollView, Text, View } from "react-native";
 import { EventLog } from "../components/EventLog";
@@ -8,9 +9,9 @@ import { useSimulation } from "../components/SimulationProvider";
 /** Shows current shift metrics, patient distribution, and recent activity. */
 export default function Dashboard() {
   const { patients, events, simTime, metrics } = useSimulation();
-  const arrivals = patients.filter((patient) => patient.status === "triage" && patient.arrivalTs === simTime);
+  const arrivals = patients.filter((patient) => patient.status === "triage" && (localMode ? patient.arrivalTs === simTime : simTime - patient.arrivalTs <= 3));
   const triage = patients.filter((patient) => patient.status === "triage").length - arrivals.length;
-  const admitted = patients.filter((patient) => patient.status === "admitted").length;
+  const admitted = metrics.admitted ?? patients.filter((patient) => patient.status === "admitted").length;
   const cards = [
     { title: "Total Patients", value: metrics.total, icon: Users },
     { title: "Patients Waiting", value: metrics.waiting, icon: Clock },
@@ -37,7 +38,7 @@ export default function Dashboard() {
           <Text className="mt-1 text-sm text-slate-600">Emergency department patient flow</Text>
         </View>
         <Text className="rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-900">
-          Simulated shift · T+{simTime}s
+          {localMode ? `Simulated shift · T+${simTime}s` : "Shared ER dashboard"}
         </Text>
       </View>
 

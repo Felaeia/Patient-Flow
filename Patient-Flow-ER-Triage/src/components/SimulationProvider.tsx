@@ -1,6 +1,8 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { PropsWithChildren } from "react";
 import { Pressable, Text, View } from "react-native";
+import { apiFlow } from "../api/flow";
+import { localMode } from "../api/client";
 import { getPatientFlow } from "../database/open";
 import type { FlowSnapshot } from "../simulation/patientFlow";
 import { PatientModal } from "./PatientModal";
@@ -8,42 +10,49 @@ import { useAuth } from "../auth/AuthProvider";
 
 type SimulationView = FlowSnapshot & {
   handleSelectPatient: (id: string | null) => void;
-  handleTriage: (id: string, esi: number) => void;
+  handleTriage?: (id: string, esi: number) => void;
+  busy: boolean;
 };
 const SimulationContext = createContext<SimulationView | null>(null);
 
-/** Presents committed SQLite state and forwards actions to the simulation service. */
+/** Presents committed flow state from the configured data source. */
 export function SimulationProvider({ children }: PropsWithChildren) {
   const [snapshot, setSnapshot] = useState<FlowSnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const { actor } = useAuth();
+  const { actor, request, can } = useAuth();
+  const remote = useMemo(() => request && apiFlow(request), [request]);
+  const pending = useRef(false);
+  const mutation = useRef(0);
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
     async function start() {
       try {
-        const flow = await getPatientFlow();
+        const flow = remote || (localMode ? await getPatientFlow() : undefined);
+        if (!flow) return;
         const initial = await flow.load();
         if (!active) return;
         setSnapshot(initial);
 
-        async function tick() {
+        const tick = async () => {
           try {
+            const revision = mutation.current;
             const next = await flow.tick();
             if (!active) return;
-            setSnapshot(next);
-            timer = setTimeout(tick, 1000);
+            if (!pending.current && revision === mutation.current) setSnapshot(next);
+            timer = setTimeout(tick, remote ? 3000 : 1000);
           } catch (cause) {
-            if (active) setError(`Simulation paused. ${String(cause)}`);
+            if (active) setError(`Refresh paused. ${String(cause)}`);
           }
-        }
+        };
 
-        timer = setTimeout(tick, 1000);
+        timer = setTimeout(tick, remote ? 3000 : 1000);
       } catch (cause) {
-        if (active) setError(`Could not load TriFlow database. ${String(cause)}`);
+        if (active) setError(`Could not load TriFlow. ${String(cause)}`);
       }
     }
     void start();
@@ -51,20 +60,34 @@ export function SimulationProvider({ children }: PropsWithChildren) {
       active = false;
       clearTimeout(timer);
     };
-  }, [attempt]);
+  }, [attempt, remote]);
 
-  async function handleTriage(id: string, esi: number) {
-    try {
-      const flow = await getPatientFlow();
-      setSnapshot(await flow.triage(id, esi, actor));
-    } catch (cause) {
-      setError(`Could not save triage. ${String(cause)}`);
-    }
+  async function command(run: () => Promise<FlowSnapshot>) {
+    if (pending.current || !can("clinical:triage")) return;
+    pending.current = true;
+    mutation.current += 1;
+    setBusy(true);
+    setError(null);
+    try { setSnapshot(await run()); }
+    catch (cause) { setError(String(cause)); }
+    finally { pending.current = false; setBusy(false); }
   }
 
+  function handleTriage(id: string, esi: number) {
+    return command(async () => remote ? remote.triage(id, esi) : (await getPatientFlow()).triage(id, esi, actor));
+  }
+
+  function clinicalAction(id: string, action: string, body: object) {
+    if (!request || !remote) return;
+    void command(async () => {
+      await request("/encounters/" + id + "/" + action, "POST", body);
+      return remote.load();
+    });
+  }
   return (
     <SimulationContext.Provider value={snapshot && {
-      ...snapshot, handleSelectPatient: setSelectedPatientId, handleTriage,
+      ...snapshot, busy, handleSelectPatient: setSelectedPatientId,
+      handleTriage: can("clinical:triage") ? handleTriage : undefined,
     }}>
       {error && (
         <View className="gap-2 bg-red-50 p-4">
@@ -73,15 +96,21 @@ export function SimulationProvider({ children }: PropsWithChildren) {
             setError(null);
             setAttempt((previous) => previous + 1);
           }}>
-            <Text className="font-semibold text-red-900">Reload database view</Text>
+            <Text className="font-semibold text-red-900">Retry loading TriFlow</Text>
           </Pressable>
         </View>
       )}
-      {snapshot ? children : !error && <Text className="p-4">Opening TriFlow database…</Text>}
+      {snapshot ? children : !error && <Text className="p-4">Loading TriFlow…</Text>}
       <PatientModal
         patient={snapshot?.patients.find((patient) => patient.id === selectedPatientId)}
         onClose={() => setSelectedPatientId(null)}
-        onTriage={handleTriage}
+        onTriage={can("clinical:triage") ? handleTriage : undefined}
+        busy={busy}
+        error={error}
+        shared={!!remote}
+        bays={snapshot?.bays}
+        staff={snapshot?.staff}
+        onAction={remote && can("clinical:triage") ? clinicalAction : undefined}
       />
     </SimulationContext.Provider>
   );

@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: triflow
+      POSTGRES_USER: triflow
+      POSTGRES_PASSWORD: ${TRIFLOW_POSTGRES_PASSWORD:?Set a local PostgreSQL password}
+      TZ: UTC
+    ports:
+      - "127.0.0.1:${TRIFLOW_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - triflow-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triflow -d triflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+volumes:
+  triflow-data:

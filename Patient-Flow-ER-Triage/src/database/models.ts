@@ -4,7 +4,7 @@ export interface Patient {
   age: number;
   sex: string;
   complaint: string;
-  vitals: { hr: number; bpSys: number; bpDia: number; spo2: number; temp: number };
+  vitals: { hr: number; bpSys: number; bpDia: number; spo2: number; temp: number } | null;
   pain: number;
   esi: number | null;
   suggestedEsi: number;
@@ -42,6 +42,7 @@ export interface DashboardMetrics {
   occupiedBays: number;
   availableStaff: number;
   averageWait: number;
+  admitted?: number;
 }
 
 export interface Bay { id: number; name: string; status: "available" | "occupied" | "unavailable" }

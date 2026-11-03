@@ -1,4 +1,8 @@
-# Starter Template with React Navigation
+# TriFlow ER Triage
+
+See the [TriFlow API guide](server/README.md) to run PostgreSQL, connect Expo, import SQLite data, or run load tests.
+
+## Expo starter notes
 
 This is a minimal starter template for React Native apps using Expo and React Navigation.
 

@@ -1,0 +1,12 @@
+ALTER TABLE encounters ADD COLUMN legacy_operational_id text UNIQUE;
+ALTER TABLE encounters ADD COLUMN archived_at timestamptz;
+ALTER TABLE patient_records ADD COLUMN legacy_unidentified boolean;
+ALTER TABLE staff ADD COLUMN legacy_id text UNIQUE;
+ALTER TABLE staff ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE treatment_bays ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE resources ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE resources ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
+ALTER TABLE resources ADD COLUMN archived_at timestamptz;
+ALTER TABLE event_logs ADD COLUMN legacy_id text UNIQUE;
+ALTER TABLE event_logs ADD COLUMN type text NOT NULL DEFAULT 'info' CHECK (type IN ('info','success','warn','critical'));
+ALTER TABLE notifications ADD COLUMN type text NOT NULL DEFAULT 'info';

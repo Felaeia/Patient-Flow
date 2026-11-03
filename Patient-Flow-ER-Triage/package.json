@@ -7,7 +7,8 @@
     "web": "expo start --web",
     "test:database": "node --test tests/database.test.cjs",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@expo/metro-runtime": "~56.0.15",
@@ -40,6 +41,8 @@
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~19.2.10",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~56.0.4",
     "typescript": "~6.0.3"
   },
   "private": true

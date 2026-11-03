@@ -1,0 +1,26 @@
+{
+  "name": "triflow-api",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts",
+    "start": "tsx src/main.ts",
+    "migrate": "tsx src/migrate.ts",
+    "check": "tsc --noEmit",
+    "import:sqlite": "tsx src/import-sqlite.ts"
+  },
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "@fastify/cors": "^11.4.0",
+    "@fastify/swagger": "^9.9.3",
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2"
+  }
+}

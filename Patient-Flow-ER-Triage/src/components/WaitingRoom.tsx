@@ -1,3 +1,4 @@
+import { localMode } from "../api/client";
 import React from 'react';
 import { View, Text, ScrollView, TouchableOpacity } from 'react-native';
 import { Users, TriangleAlert } from 'lucide-react-native';
@@ -50,7 +51,7 @@ export function WaitingRoom({ patients, simTime, onSelect }: any) {
               patients.map((r: any) => {
                 // FIXED: Restored the subtraction operator
                 const waitTime = r.waitStartTs !== null ? simTime - r.waitStartTs : 0;
-                const isRisk = waitTime > 60; // LWBS (Left Without Being Seen) Risk threshold
+                const isRisk = localMode && waitTime > 60; // LWBS (Left Without Being Seen) Risk threshold
 
                 return (
                   <TouchableOpacity
@@ -100,7 +101,7 @@ export function WaitingRoom({ patients, simTime, onSelect }: any) {
                           {r.age}{r.sex}
                         </Text>
                         <Text className="text-[11px] text-slate-400">
-                          • HR {r.vitals.hr} • SpO2 {r.vitals.spo2}%
+                          {r.vitals ? `• HR ${r.vitals.hr} • SpO2 ${r.vitals.spo2}%` : "Vitals unavailable"}
                         </Text>
                       </View>
                     </View>

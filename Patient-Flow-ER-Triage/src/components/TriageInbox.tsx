@@ -1,3 +1,4 @@
+import { localMode } from "../api/client";
 import { View, Text, ScrollView, TouchableOpacity } from "react-native";
 import {
   Stethoscope,
@@ -28,7 +29,7 @@ const ESI_LABELS: Record<number, string> = {
 };
 
 // Changed to named export to match your dashboard imports
-export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
+export function TriageInbox({ patients, simTime, onTriage, onSelect, busy }: any) {
   return (
     <View className="rounded-[20px] bg-white border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1">
       {/* Header */}
@@ -63,14 +64,14 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
               All caught up
             </Text>
             <Text className="text-[11px] text-slate-500 mt-1 text-center">
-              No patients awaiting triage. Auto arrivals continue.
+              No patients awaiting triage.
             </Text>
           </View>
         ) : (
           patients.map((p: any) => {
             // FIXED: Restored the subtraction operator
             const waitTime = simTime - p.triageStartTs;
-            const isDelayed = waitTime > 25;
+            const isDelayed = localMode && waitTime > 25;
 
             return (
               <View
@@ -82,7 +83,7 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                   <View className="flex flex-row items-center gap-2 flex-1">
                     <View className="h-8 w-8 rounded-full bg-slate-900 items-center justify-center">
                       <Text className="text-[11px] font-bold text-white">
-                        {p.id.split("-")[1]}
+                        {p.id.split("-").at(-1)}
                       </Text>
                     </View>
                     <View className="flex flex-col flex-1">
@@ -96,7 +97,7 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                             {p.sex}
                           </Text>
                         </View>
-                        <View
+                        {!!p.suggestedEsi && <View
                           className="px-1.5 py-0.5 rounded-full"
                           style={{
                             backgroundColor: ESI_COLORS[p.suggestedEsi],
@@ -105,7 +106,7 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                           <Text className="text-[10px] font-bold tracking-wide text-white">
                             SUG ESI-{p.suggestedEsi}
                           </Text>
-                        </View>
+                        </View>}
                       </View>
                       <View className="mt-0.5 flex flex-row items-center gap-1">
                         <TriangleAlert size={12} color="#94a3b8" />
@@ -126,7 +127,7 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                 </View>
 
                 {/* Vitals Grid */}
-                <View className="mt-2.5 flex flex-row flex-wrap gap-1.5">
+                {p.vitals ? <View className="mt-2.5 flex flex-row flex-wrap gap-1.5">
                   <VitalBadge
                     icon={HeartPulse}
                     label="HR"
@@ -157,7 +158,7 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                     value={`${p.pain}/10`}
                     warn={p.pain >= 8}
                   />
-                </View>
+                </View> : <Text className="mt-2 text-xs text-slate-500">Vitals unavailable</Text>}
 
                 {/* Timers */}
                 <View className="mt-3 flex flex-row items-center justify-between">
@@ -173,7 +174,7 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                     </Text>
                   </View>
                   <Text className="text-[10px] text-slate-400">
-                    T+{p.arrivalTs}s
+                    {localMode ? `T+${p.arrivalTs}s` : new Date(p.arrivalTs * 1000).toLocaleTimeString()}
                   </Text>
                 </View>
 
@@ -182,7 +183,10 @@ export function TriageInbox({ patients, simTime, onTriage, onSelect }: any) {
                   {[1, 2, 3, 4, 5].map((i) => (
                     <TouchableOpacity
                       key={i}
-                      onPress={() => onTriage(p.id, i)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Assign ESI ${i} to encounter ${p.id}`}
+                      disabled={busy || !onTriage}
+                      onPress={() => onTriage?.(p.id, i)}
                       style={{
                         backgroundColor: ESI_COLORS[i],
                         borderWidth: p.suggestedEsi === i ? 2 : 0,

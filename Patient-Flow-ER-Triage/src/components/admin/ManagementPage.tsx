@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Plus, Search, X } from "lucide-react-native";
 
@@ -30,14 +30,23 @@ export function ManagementPage<T extends { id: string | number }>({ config }: { 
   const [stats, setStats] = useState("");
   const [confirming, setConfirming] = useState(false);
 
+  const saving = useRef(false);
+  const [submitting, setSubmitting] = useState(false);
+  const latest = useRef(0);
+
   async function refresh() {
+    const request = ++latest.current;
     setLoading(true);
     try {
       const result = await config.load(search, filter, page);
+      if (request !== latest.current) return;
       setRows(result.rows); setTotal(result.total); setPageSize(result.pageSize);
-      if (config.stats) setStats(await config.stats());
-    } catch (error) { setMessage(String(error)); }
-    finally { setLoading(false); }
+      if (config.stats) {
+        const summary = await config.stats();
+        if (request === latest.current) setStats(summary);
+      }
+    } catch (error) { if (request === latest.current) setMessage(String(error)); }
+    finally { if (request === latest.current) setLoading(false); }
   }
   useEffect(() => {
     const timer = setTimeout(() => { void refresh(); }, 0);
@@ -54,15 +63,19 @@ export function ManagementPage<T extends { id: string | number }>({ config }: { 
     setOpen(true); setMessage(""); setConfirming(false);
   }
   async function submit() {
+    if (saving.current) return;
     const visibleFields = config.fields.filter((field) => !editing || !field.createOnly);
     const missing = visibleFields.find((field) => field.required && !values[field.key]?.trim());
     if (missing) { setMessage(`${missing.label} is required`); return; }
     const highImpact = editing && [values.status, values.operationalStatus, values.employmentStatus].some((value) => ["Inactive", "Unavailable", "Maintenance", "Out of Service"].includes(value));
     if (highImpact && !confirming) { setConfirming(true); setMessage("Review this high-impact status change, then select Confirm save."); return; }
+    saving.current = true;
+    setSubmitting(true);
     try {
       await config.save(editing?.id ?? null, values);
       setOpen(false); await refresh(); setMessage(`${config.title} saved successfully`);
     } catch (error) { setMessage(String(error)); }
+    finally { saving.current = false; setSubmitting(false); }
   }
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -86,6 +99,7 @@ export function ManagementPage<T extends { id: string | number }>({ config }: { 
         <TextInput accessibilityLabel={`Filter ${config.title}`} value={filter} onChangeText={(text) => { setFilter(text); setPage(1); }} placeholder={config.filterPlaceholder ?? "Filter status (optional)"} className="min-h-11 min-w-[190px] flex-1 rounded-xl border border-slate-300 px-3" />
       </View>
       {!!message && <Text accessibilityRole="alert" className={message.includes("successfully") ? "text-emerald-700" : "text-red-700"}>{message}</Text>}
+      {!!message && !loading && !open && <Pressable onPress={() => { setMessage(""); void refresh(); }}><Text className="font-semibold text-teal-900">Reload records</Text></Pressable>}
       {loading ? <Text className="p-8 text-center text-slate-600">Loading records…</Text> : rows.length === 0 ? (
         <View className="rounded-2xl border border-dashed border-slate-300 bg-white p-10"><Text className="text-center text-slate-600">No matching records</Text></View>
       ) : <View className="gap-3">{rows.map((row) => {
@@ -114,7 +128,7 @@ export function ManagementPage<T extends { id: string | number }>({ config }: { 
             <ScrollView contentContainerStyle={{ gap: 12 }} keyboardShouldPersistTaps="handled">
               {config.fields.filter((field) => !editing || !field.createOnly).map((field) => <View key={field.key} className="gap-1"><Text className="text-sm font-semibold text-slate-700">{field.label}{field.required ? " *" : ""}</Text><TextInput accessibilityLabel={field.label} keyboardType={field.keyboard} value={values[field.key] ?? ""} onChangeText={(text) => { setConfirming(false); setValues((current) => ({ ...current, [field.key]: text })); }} placeholder={field.placeholder} className="min-h-11 rounded-xl border border-slate-300 px-3" /></View>)}
               {!!message && open && <Text accessibilityRole="alert" className={confirming ? "text-amber-700" : "text-red-700"}>{message}</Text>}
-              <Pressable accessibilityRole="button" onPress={submit} className="mt-2 items-center rounded-xl bg-teal-900 px-4 py-3"><Text className="font-bold text-white">{confirming ? "Confirm save" : "Save record"}</Text></Pressable>
+              <Pressable accessibilityRole="button" disabled={submitting} onPress={submit} className="mt-2 items-center rounded-xl bg-teal-900 px-4 py-3"><Text className="font-bold text-white">{confirming ? "Confirm save" : "Save record"}</Text></Pressable>
             </ScrollView>
           </View>
         </View>
