@@ -1,3 +1,4 @@
+import type { Bay } from "../database/models";
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { BedDouble } from 'lucide-react-native';
@@ -46,7 +47,7 @@ export function TreatmentBays({ beds, treatmentPatients, staff, onSelect }: any)
 
       {/* Bays List / Grid */}
       <View className="p-3 flex flex-col gap-3">
-        {beds.map((bedId: number) => {
+        {beds.map(({ id: bedId, status }: Bay) => {
           const patient = treatmentPatients.find((p: any) => p.bedId === bedId);
           const assignedStaff = staff.filter((s: any) => s.assignedPatientId === patient?.id);
 
@@ -62,11 +63,11 @@ export function TreatmentBays({ beds, treatmentPatients, staff, onSelect }: any)
                     BAY {bedId}
                   </Text>
                   <View className="px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200">
-                    <Text className="text-[10px] font-bold text-slate-500">FREE</Text>
+                    <Text className="text-[10px] font-bold text-slate-500">{status === "unavailable" ? "UNAVAILABLE" : "FREE"}</Text>
                   </View>
                 </View>
                 <Text className="text-[12px] text-slate-400">
-                  Ready for ESI 1-2 priority assignment
+                  {status === "unavailable" ? "Out of service" : "Ready for ESI priority assignment"}
                 </Text>
                 <View className="h-1.5 w-full rounded-full bg-slate-100" />
               </View>
@@ -147,7 +148,7 @@ export function TreatmentBays({ beds, treatmentPatients, staff, onSelect }: any)
                 </View>
                 
                 <Text className="mt-1 text-[10px] text-slate-400">
-                  Est {patient.esi ? ESI_TREATMENT_TIME[patient.esi] : 30}s • x1.35 with staff
+                  Est {patient.esi ? ESI_TREATMENT_TIME[patient.esi] : 30}s â€¢ x1.35 with staff
                 </Text>
               </View>
 

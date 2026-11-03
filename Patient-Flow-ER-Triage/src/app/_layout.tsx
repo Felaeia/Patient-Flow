@@ -1,17 +1,14 @@
-import { Stack } from 'expo-router';
+import { Slot } from "expo-router";
+import { AppShell } from "../components/AppShell";
+import { SimulationProvider } from "../components/SimulationProvider";
 import "../../global.css";
 
 export default function RootLayout() {
   return (
-    <Stack>
-      <Stack.Screen 
-        name="index" 
-        options={{ 
-          title: 'ER Patient Flow Dashboard',
-          headerStyle: { backgroundColor: '#0f172a' },
-          headerTintColor: '#fff',
-        }} 
-      />
-    </Stack>
+    <SimulationProvider>
+      <AppShell>
+        <Slot />
+      </AppShell>
+    </SimulationProvider>
   );
 }

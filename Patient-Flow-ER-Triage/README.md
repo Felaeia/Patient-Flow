@@ -63,3 +63,19 @@ The `ios` and `android` folder are gitignored in the project by default as they 
 ---
 
 Demo assets are from [lucide.dev](https://lucide.dev/)
+
+## TriFlow local database
+
+TriFlow opens `triflow.db` through [Expo SQLite](https://docs.expo.dev/versions/v56.0.0/sdk/sqlite/) on startup. On Android and iOS it lives in Expo SQLite's default directory in the app sandbox. The web build uses SQLite WASM and the browser's origin-private file system. Browser data is scoped to the browser profile and origin, including the port. Use localhost or HTTPS. For deployed web builds, configure the host to send `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless`. Web support in Expo SQLite is alpha. Use one TriFlow tab per origin. Rebuild an existing native development client after installing the SQLite module.
+
+- `src/database/schema.ts` enables and verifies foreign keys on open, then applies migrations in order under a transaction. `PRAGMA user_version` records the last completed migration. Add a new migration when changing the schema.
+- `Patients` holds demographics, symptoms, vitals, and current status. `TriageAssessments` stores ESI history, and `PatientQueues` tracks triage and waiting. `TreatmentBays` and `Staff` track availability. `PatientAssignments` stores one active bay per patient and separate rows for each staff member. Partial unique indexes prevent two active allocations of the same bay or staff member.
+- `EventLogs` stores patient-linked or general activity. `Notifications` stores messages and read status through the repository. `SimulationState` stores the simulated clock and the one-time seed marker.
+- `src/database/repositories.ts` provides typed, bound queries. `src/simulation/patientFlow.ts` composes registration, triage, assignment, and disposition in serialized SQLite transactions. The provider publishes snapshots after commit. Dashboard totals include all registered patients, including discharged and admitted patients. Average wait is the mean elapsed simulated seconds for patients currently waiting. The event log shows the latest 50 entries in descending simulation order.
+- Database audit dates use SQLite `CURRENT_TIMESTAMP`, formatted as UTC `YYYY-MM-DD HH:MM:SS`. Simulation tick fields are elapsed seconds and resume from the last commit after restart.
+
+### Demo data and verification
+
+A fresh database initializes the simulator's eight bays and six fictional staff records. Patient arrivals continue through the simulation. To prepopulate 20 synthetic patients, ESI assessments, queues, events, and a demo notification, set `EXPO_PUBLIC_TRIFLOW_SEED=1` before starting a development build or `npm run web`. The seed runs once per database and preserves existing records. For a clean local development database, clear that browser origin's site data or clear the development app's storage. This removes all local records for that instance.
+
+Run `npm run test:database` with Node.js 24 or later. The suite uses a temporary SQLite file and exercises the production schema, repositories, and workflows. It covers migrations, foreign keys, invalid ESI, patient CRUD, duplicate bay allocation, assignment rollback, notifications, idempotent seeding, and close/reopen persistence. Browser smoke checks covered startup, all five routes, triage, dashboard updates, and persistence after refresh and a full browser restart.

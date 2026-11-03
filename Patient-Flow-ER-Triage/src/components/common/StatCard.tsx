@@ -12,9 +12,9 @@ export default function StatCard({
     // Removed min-w and fixed flex behavior so it shares the row evenly
     <View className="flex-1 rounded-[16px] bg-white border border-slate-200 p-4 shadow-sm">
       <View className="flex flex-row items-center justify-between mb-2">
-        <View className="flex flex-row items-center gap-1.5">
+        <View className="flex flex-1 flex-row items-center gap-1.5 pr-2">
           {Icon && <Icon size={14} color="#64748b" />}
-          <Text className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+          <Text className="flex-1 text-[11px] font-bold tracking-widest text-slate-500 uppercase">
             {title}
           </Text>
         </View>

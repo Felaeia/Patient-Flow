@@ -41,11 +41,11 @@ export function EventLog({ events }: any) {
               key={n.id} 
               className={`rounded-xl px-3 py-2 border flex flex-row items-start ${containerStyle}`}
             >
-              <Text className="font-mono text-[10px] text-slate-400 mr-2 mt-[1px]">
+              <Text className="font-mono text-[10px] text-slate-600 mr-2 mt-[1px]">
                 T+{n.ts}s
               </Text>
               <Text className={`text-[11px] leading-[15px] flex-1 ${textStyle}`}>
-                {n.text}
+                <Text className="font-semibold">{n.category} · </Text>{n.text} ({n.type})
               </Text>
             </View>
           );
