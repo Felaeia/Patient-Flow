@@ -11,6 +11,7 @@ export type Role = keyof typeof grants;
 export type Permission = typeof grants.admin[number];
 export interface Actor { id: string; role: Role }
 export type Authenticate = (authorization?: string) => Promise<Actor | undefined>;
+export const localDevelopmentAdminToken = "triflow-local-development-admin";
 
 export function permit(actor: Actor, permission: Permission) {
   const permissions: readonly Permission[] = Object.hasOwn(grants, actor.role) ? grants[actor.role] : [];
@@ -19,7 +20,11 @@ export function permit(actor: Actor, permission: Permission) {
 
 export function developmentAuth(tokens: string | undefined): Authenticate {
   if (process.env.NODE_ENV === "production") throw new Error("Production requires an identity adapter");
-  const entries = Object.entries(JSON.parse(tokens ?? "{}") as Record<string, Actor>);
+  const configured = JSON.parse(tokens ?? "{}") as Record<string, Actor>;
+  const entries = Object.entries({
+    [localDevelopmentAdminToken]: { id: "local-admin", role: "admin" } satisfies Actor,
+    ...configured,
+  });
   const ids = new Set<string>();
   for (const [token, actor] of entries) {
     if (token.length < 24 || !actor || typeof actor.id !== "string" || !actor.id.trim() ||

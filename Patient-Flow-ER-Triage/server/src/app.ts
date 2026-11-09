@@ -3,14 +3,14 @@ import cors from "@fastify/cors";
 import swagger from "@fastify/swagger";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import type { Pool } from "pg";
+import type { Database } from "./db.js";
 import { permit, type Actor, type Authenticate, type Permission } from "./auth.js";
 import { ApiError } from "./errors.js";
-import { Repository } from "./repository.js";
+import { checkMigrations } from "./migrate.js";
 import { service } from "./service.js";
 import * as v from "./validation.js";
 
-export async function buildApp(pool: Pool, authenticate: Authenticate, options: { origins?: string[]; logger?: boolean } = {}) {
+export async function buildApp(database: Database, authenticate: Authenticate, options: { origins?: string[]; logger?: boolean } = {}) {
   const app = Fastify({ logger: options.logger ?? false, logController: new LogController({ disableRequestLogging: true }), requestIdHeader: false, genReqId: () => randomUUID(), bodyLimit: 32_768 });
   await app.register(cors, { origin: options.origins ?? [], methods: ["GET", "POST", "PATCH"], allowedHeaders: ["Authorization", "Content-Type"] });
   await app.register(swagger, { openapi: {
@@ -29,17 +29,15 @@ export async function buildApp(pool: Pool, authenticate: Authenticate, options: 
     return reply.code(status).send({ status, code, message, requestId: request.id, details });
   }
   app.setNotFoundHandler((request, reply) => sendError(reply, request, 404, "NOT_FOUND", "Route was not found"));
-  app.setErrorHandler((error: Error & { code?: string; statusCode?: number }, request, reply) => {
+  app.setErrorHandler((error: Error & { code?: string; errcode?: number; statusCode?: number }, request, reply) => {
     if (error instanceof z.ZodError) {
       return sendError(reply, request, 400, "INVALID_INPUT", "Request validation failed",
         error.issues.map(({ path, code }) => ({ field: path.join("."), code })));
     }
     if (error instanceof ApiError) return sendError(reply, request, error.status, error.code, error.message);
-    if (["23505", "23514", "23503", "40P01", "40001"].includes(error.code ?? "")) {
+    // SQLite stores the primary result code in the low byte of the extended code.
+    if (error.code === "ERR_SQLITE_ERROR" && [5, 6, 19].includes((error.errcode ?? 0) & 0xff)) {
       return sendError(reply, request, 409, "CONFLICT", "Request conflicts with current data");
-    }
-    if (["22007", "22008", "22P02", "22021"].includes(error.code ?? "")) {
-      return sendError(reply, request, 400, "INVALID_INPUT", "Request contains an invalid value");
     }
     if (error.statusCode && error.statusCode >= 400 && error.statusCode < 500) {
       return sendError(reply, request, error.statusCode, "INVALID_REQUEST", "Request could not be parsed");
@@ -49,7 +47,7 @@ export async function buildApp(pool: Pool, authenticate: Authenticate, options: 
   });
   app.get("/health", async () => ({ data: { status: "ok" } }));
   app.get("/ready", async () => {
-    try { await new Repository(pool).ready(); }
+    try { checkMigrations(database); }
     catch { throw new ApiError(503, "NOT_READY", "Database is unavailable or migrations are pending"); }
     return { data: { status: "ready" } };
   });
@@ -89,7 +87,7 @@ export async function buildApp(pool: Pool, authenticate: Authenticate, options: 
       handler: async (request, reply) => {
         const actor = actors.get(request)!;
         const parsed = params.parse(request.params ?? {}) as Record<string, string>;
-        const data = await handler(service(pool, actor), {
+        const data = await handler(service(database, actor), {
           id: param ? parsed[param] : "", query: query.parse(request.query),
           body: (config.body ?? empty).parse(request.body === undefined ? {} : request.body) as z.output<T>, actor,
         });

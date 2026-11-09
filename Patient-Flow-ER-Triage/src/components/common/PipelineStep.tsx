@@ -2,16 +2,16 @@ import { Text, View } from "react-native";
 
 export default function PipelineStep({ icon: Icon, label, count, isLast = false }: any) {
   return (
-    <View className="flex flex-row items-center flex-1">
-      <View className="flex flex-row items-center gap-3">
-        <View className="h-10 w-10 rounded-full bg-slate-900 items-center justify-center">
-          <Icon size={18} color="white" />
+    <View className="flex-row items-center">
+      <View className="flex-row items-center gap-2">
+        <View className="h-8 w-8 items-center justify-center rounded-full bg-slate-900">
+          <Icon size={15} color="white" />
         </View>
         <View>
-          <Text className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">
+          <Text numberOfLines={1} className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
             {label}
           </Text>
-          <Text className="text-[20px] font-bold text-slate-900 leading-tight">
+          <Text className="text-[18px] font-bold leading-tight text-slate-900">
             {count}
           </Text>
         </View>

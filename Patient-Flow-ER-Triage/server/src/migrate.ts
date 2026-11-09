@@ -1,31 +1,44 @@
-import { readFile, readdir } from "node:fs/promises";
+import { readFileSync, readdirSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import type { Pool } from "pg";
-import { connect, transaction } from "./db.js";
+import { connect, databasePath, transaction, type Database } from "./db.js";
 
 const directory = new URL("../migrations/", import.meta.url);
-export async function migrate(pool: Pool) {
-  await transaction(pool, async (db) => {
-    await db.query("SELECT pg_advisory_xact_lock(198274236)");
-    await db.query("CREATE TABLE IF NOT EXISTS schema_migrations (version text PRIMARY KEY, checksum text NOT NULL, applied_at timestamptz DEFAULT now())");
-    for (const version of (await readdir(directory)).filter((name) => /^\d+_.+\.sql$/.test(name)).sort()) {
-      const sql = await readFile(new URL(version, directory), "utf8");
-      const checksum = createHash("sha256").update(sql.replaceAll("\r\n", "\n")).digest("hex");
-      const applied = (await db.query("SELECT checksum FROM schema_migrations WHERE version=$1", [version])).rows[0];
+const migrations = readdirSync(directory).filter((name) => /^\d+_.+\.sql$/.test(name)).sort().map((version) => {
+  const sql = readFileSync(new URL(version, directory), "utf8").replaceAll("\r\n", "\n");
+  return { version, sql, checksum: createHash("sha256").update(sql).digest("hex") };
+});
+
+export function migrate(database: Database) {
+  transaction(database, (db) => {
+    db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
+      version TEXT PRIMARY KEY NOT NULL, checksum TEXT NOT NULL,
+      applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    ) STRICT`);
+    const select = db.prepare("SELECT checksum FROM schema_migrations WHERE version=?");
+    const insert = db.prepare("INSERT INTO schema_migrations(version,checksum) VALUES (?,?)");
+    for (const { version, sql, checksum } of migrations) {
+      const applied = select.get(version);
       if (applied) {
         if (applied.checksum !== checksum) throw new Error("Applied migration has changed");
         continue;
       }
-      await db.query(sql.trim().replace(/^BEGIN;\s*/i, "").replace(/\s*COMMIT;$/i, ""));
-      await db.query("INSERT INTO schema_migrations(version,checksum) VALUES ($1,$2)", [version, checksum]);
+      db.exec(sql);
+      insert.run(version, checksum);
     }
   });
 }
 
+export function checkMigrations(db: Database) {
+  const applied = db.prepare("SELECT version, checksum FROM schema_migrations").all();
+  const ledger = new Map(applied.map(({ version, checksum }) => [version, checksum]));
+  if (ledger.size !== migrations.length || migrations.some(({ version, checksum }) => ledger.get(version) !== checksum)) {
+    throw new Error("Migrations required");
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
-  const pool = connect(process.env.DATABASE_URL);
-  try { await migrate(pool); console.log("Migrations applied"); }
-  finally { await pool.end(); }
+  const db = connect(databasePath());
+  try { migrate(db); console.log("Migrations applied"); }
+  finally { db.close(); }
 }

@@ -1,50 +1,54 @@
-import { createContext, useContext, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { PropsWithChildren } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import type { AdminActor, AdminRole } from "../database/models";
 import { can, type Permission } from "./permissions";
-import { apiBase, createClient, localMode, type Client } from "../api/client";
+import { apiBase, automaticToken, createClient, localMode, type Client } from "../api/client";
 
 const configuredRole = process.env.EXPO_PUBLIC_TRIFLOW_ROLE as AdminRole | undefined;
 const localActor: AdminActor = { id: "local-admin", role: configuredRole && ["admin", "registration", "clinical", "viewer"].includes(configuredRole) ? configuredRole : "admin" };
 type Session = { actor: AdminActor; request?: Client };
 const AuthContext = createContext<Session>({ actor: localActor });
 
+async function automaticSession(): Promise<Session> {
+  const request = createClient(automaticToken);
+  return { actor: await request<AdminActor>("/me"), request };
+}
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
-  const [token, setToken] = useState("");
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const submitting = useRef(false);
 
-  async function signIn() {
-    if (submitting.current || !token.trim()) return;
-    submitting.current = true;
-    setBusy(true);
-    setError("");
-    try {
-      const request = createClient(token.trim());
-      setSession({ actor: await request<AdminActor>("/me"), request });
-      setToken("");
-    } catch (cause) {
-      setError(String(cause));
-    } finally {
-      submitting.current = false;
-      setBusy(false);
+  useEffect(() => {
+    let active = true;
+    if (!localMode && apiBase && automaticToken) {
+      void automaticSession().then(
+        (next) => { if (active) setSession(next); },
+        (cause) => { if (active) setError(cause instanceof Error ? cause.message : String(cause)); },
+      );
     }
+    return () => { active = false; };
+  }, []);
+
+  function retry() {
+    setError("");
+    void automaticSession().then(setSession, (cause) =>
+      setError(cause instanceof Error ? cause.message : String(cause)));
   }
 
   if (localMode) return <AuthContext.Provider value={{ actor: localActor }}>{children}</AuthContext.Provider>;
-  if (!apiBase) return <Text className="p-4">Configure the TriFlow API URL to connect to shared data.</Text>;
+  if (!apiBase) return <Text className="p-4">Set EXPO_PUBLIC_TRIFLOW_API_URL to your TriFlow backend URL and reload the app.</Text>;
+  if (!automaticToken) return <Text className="p-4">Set EXPO_PUBLIC_TRIFLOW_TOKEN for automatic sign-in and reload the app.</Text>;
   if (session) return <AuthContext.Provider value={session}>{children}</AuthContext.Provider>;
-  return <View className="m-4 max-w-[480px] gap-3 rounded-xl border border-slate-300 p-4">
-    <Text accessibilityRole="header" className="text-xl font-bold">Connect to TriFlow</Text>
-    <TextInput accessibilityLabel="Bearer credential" secureTextEntry autoCapitalize="none" value={token}
-      onChangeText={setToken} onSubmitEditing={signIn} placeholder="Bearer credential" className="rounded-lg border border-slate-300 p-3" />
-    <Pressable accessibilityRole="button" disabled={busy} onPress={signIn} className="rounded-lg bg-teal-900 p-3">
-      <Text className="font-bold text-white">{busy ? "Connecting…" : "Connect"}</Text>
-    </Pressable>
-    {!!error && <Text accessibilityRole="alert" className="text-red-800">{error}</Text>}
+  return <View className="m-4 gap-3 p-4">
+    {!error && <Text>Signing in to TriFlow…</Text>}
+    {!!error && <>
+      <Text accessibilityRole="alert" className="text-red-800">Automatic sign-in failed. {error}</Text>
+      <Pressable accessibilityRole="button" onPress={retry}
+        className="self-start rounded-lg bg-teal-900 px-4 py-3">
+        <Text className="font-bold text-white">Retry</Text>
+      </Pressable>
+    </>}
   </View>;
 }
 

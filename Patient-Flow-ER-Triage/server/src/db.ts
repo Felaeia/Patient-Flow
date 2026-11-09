@@ -1,22 +1,42 @@
-import pg from "pg";
-import type { Pool, PoolClient } from "pg";
+import { mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import { fileURLToPath } from "node:url";
 
-export function connect(connectionString: string) {
-  return new pg.Pool({ connectionString, options: "-c timezone=UTC -c statement_timeout=10000", connectionTimeoutMillis: 5000 });
+export type Database = DatabaseSync;
+
+export function databasePath() {
+  const configured = process.env.SQLITE_PATH?.trim();
+  if (configured) return resolve(configured);
+  if (process.env.DATABASE_URL) {
+    throw new Error("Replace DATABASE_URL with SQLITE_PATH to select a SQLite database");
+  }
+  return fileURLToPath(new URL("../data/triflow.sqlite", import.meta.url));
 }
 
-export async function transaction<T>(pool: Pool, run: (db: PoolClient) => Promise<T>, readOnly = false) {
-  const db = await pool.connect();
-  let discard = false;
+export function connect(path: string): Database {
+  if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
+  const db = new DatabaseSync(path, { enableForeignKeyConstraints: true });
   try {
-    await db.query(readOnly ? "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY" : "BEGIN");
-    const result = await run(db);
-    await db.query("COMMIT");
+    db.exec("PRAGMA busy_timeout = 5000; PRAGMA journal_mode = WAL;");
+    db.function("fold_case", { deterministic: true }, (value) =>
+      typeof value === "string" ? value.toLowerCase() : null);
+    return db;
+  } catch (error) {
+    db.close();
+    throw error;
+  }
+}
+
+// Keep callbacks synchronous so another request cannot join an open transaction.
+export function transaction<T>(db: Database, run: (db: Database) => T, readOnly = false): T {
+  db.exec(readOnly ? "BEGIN" : "BEGIN IMMEDIATE");
+  try {
+    const result = run(db);
+    db.exec("COMMIT");
     return result;
   } catch (error) {
-    try { await db.query("ROLLBACK"); } catch { discard = true; }
+    try { db.exec("ROLLBACK"); } catch { /* SQLite may have already rolled back. */ }
     throw error;
-  } finally {
-    db.release(discard);
   }
 }

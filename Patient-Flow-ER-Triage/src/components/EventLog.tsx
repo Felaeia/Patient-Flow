@@ -1,17 +1,17 @@
 import { localMode } from "../api/client";
-import React from 'react';
-import { View, Text, ScrollView } from 'react-native';
+import React from "react";
+import { View, Text, ScrollView } from "react-native";
 import { Activity } from 'lucide-react-native';
 
 export function EventLog({ events }: any) {
   return (
-    <View className="rounded-[20px] bg-white border border-slate-200 shadow-sm overflow-hidden flex flex-col flex-1">
+    <View className="flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       
       {/* Header */}
-      <View className="px-4 h-[52px] flex flex-row items-center justify-between border-b border-slate-100">
+      <View className="h-11 flex-row items-center justify-between border-b border-slate-100 px-3">
         <View className="flex flex-row items-center gap-2">
           <Activity size={16} color="#0f172a" />
-          <Text className="text-[13px] font-semibold tracking-wide text-slate-900">
+          <Text className="text-xs font-semibold tracking-wide text-slate-900">
             EVENT LOG
           </Text>
         </View>
@@ -20,7 +20,7 @@ export function EventLog({ events }: any) {
       </View>
 
       {/* Events List */}
-      <ScrollView className="p-2 max-h-[420px]" contentContainerStyle={{ gap: 6 }}>
+      <ScrollView className="max-h-[300px] p-2" contentContainerStyle={{ gap: 4 }}>
         {events.map((n: any) => {
           // Determine styles based on event type
           let containerStyle = "bg-slate-50 border-slate-200";
@@ -40,12 +40,12 @@ export function EventLog({ events }: any) {
           return (
             <View 
               key={n.id} 
-              className={`rounded-xl px-3 py-2 border flex flex-row items-start ${containerStyle}`}
+              className={`rounded-lg border px-2.5 py-1.5 ${containerStyle} flex-row items-start`}
             >
-              <Text className="font-mono text-[10px] text-slate-600 mr-2 mt-[1px]">
+              <Text className="mr-2 mt-[1px] font-mono text-[10px] text-slate-600">
                 {localMode ? `T+${n.ts}s` : new Date(n.ts * 1000).toLocaleTimeString()}
               </Text>
-              <Text className={`text-[11px] leading-[15px] flex-1 ${textStyle}`}>
+              <Text className={`flex-1 text-[11px] leading-[15px] ${textStyle}`}>
                 <Text className="font-semibold">{n.category} · </Text>{n.text} ({n.type})
               </Text>
             </View>

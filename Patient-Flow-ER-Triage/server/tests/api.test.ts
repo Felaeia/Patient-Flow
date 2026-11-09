@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
-import pg from "pg";
+import { connect, type Database } from "../src/db.js";
 import { buildApp } from "../src/app.js";
 import { developmentAuth } from "../src/auth.js";
 import { migrate } from "../src/migrate.js";
@@ -15,30 +15,27 @@ import { initializeDatabase, type Connection } from "../../src/database/schema.j
 import { createAdminService } from "../../src/database/adminService.js";
 import { createPatientFlow } from "../../src/simulation/patientFlow.js";
 
-const url = process.env.TEST_DATABASE_URL;
 const roles = ["admin", "clinical", "registration", "viewer"] as const;
 const credentials = Object.fromEntries(roles.map((role) => [role, randomUUID()]));
 const auth = developmentAuth(JSON.stringify(Object.fromEntries(roles.map((role) => [credentials[role], { id: role, role }]))));
 
-async function isolated(run: (pool: pg.Pool) => Promise<void>) {
-  const root = new pg.Pool({ connectionString: url });
-  const schema = "test_" + randomUUID().replaceAll("-", "");
-  const pool = new pg.Pool({ connectionString: url, options: `-c search_path=${schema} -c timezone=UTC` });
+async function isolated(run: (db: Database, filename: string) => Promise<void>) {
+  const directory = await mkdtemp(join(tmpdir(), "triflow-api-"));
+  const filename = join(directory, "triflow.sqlite");
   try {
-    await root.query(`CREATE SCHEMA ${schema}`);
-    await run(pool);
+    const db = connect(filename);
+    try { await run(db, filename); }
+    finally { if (db.isOpen) db.close(); }
   } finally {
-    await pool.end();
-    try { await root.query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`); }
-    finally { await root.end(); }
+    await rm(directory, { recursive: true, force: true });
   }
 }
 
-test("API authorization, validation, persistence and concurrent workflows", { skip: !url }, async (t) => isolated(async (pool) => {
-  const app = await buildApp(pool, auth);
+test("API authorization, validation, persistence and concurrent workflows", async (t) => isolated(async (db, filename) => {
+  const app = await buildApp(db, auth);
   const send = (method: "GET" | "POST" | "PATCH", path: string, payload?: object, role: typeof roles[number] | null = "admin") =>
     app.inject({ method, url: "/api/v1" + path, payload, headers: role ? { authorization: "Bearer " + credentials[role] } : {} });
-  const count = async (table: string) => (await pool.query(`SELECT count(*)::int total FROM ${table}`)).rows[0].total;
+  const count = (table: string) => db.prepare(`SELECT count(*) AS total FROM ${table}`).get()?.total;
   const register = async (code: string) => {
     const response = await send("POST", "/patients", { sex: "F", patient_code: code, chief_complaint: "Synthetic complaint" }, "registration");
     assert.equal(response.statusCode, 201, response.body);
@@ -48,15 +45,15 @@ test("API authorization, validation, persistence and concurrent workflows", { sk
   try {
     assert.equal((await app.inject("/health")).statusCode, 200);
     assert.equal((await app.inject("/ready")).statusCode, 503);
-    await migrate(pool);
-    await migrate(pool);
+    await migrate(db);
+    await migrate(db);
     assert.equal((await app.inject("/ready")).statusCode, 200);
 
     await t.test("permissions, parameter validation and OpenAPI", async () => {
       assert.equal((await send("GET", "/dashboard", undefined, null)).statusCode, 401);
       assert.equal((await send("GET", "/patients", undefined, "viewer")).statusCode, 403);
       assert.equal((await send("GET", "/audit-logs", undefined, "clinical")).statusCode, 403);
-      assert.throws(() => service(pool, { id: "viewer", role: "viewer" }).register({}), /Permission denied/);
+      assert.throws(() => service(db, { id: "viewer", role: "viewer" }).register({}), /Permission denied/);
       const invalid = await send("GET", "/patients?pageSize=51");
       assert.equal(invalid.statusCode, 400);
       assert.equal(invalid.json().requestId, invalid.headers["x-request-id"]);
@@ -91,7 +88,8 @@ test("API authorization, validation, persistence and concurrent workflows", { sk
     });
 
     await t.test("late failure rolls back all registration writes", async () => {
-      await pool.query("ALTER TABLE audit_logs ADD CONSTRAINT simulated_failure CHECK (action <> 'CREATE') NOT VALID");
+      db.exec(`CREATE TRIGGER simulated_failure BEFORE INSERT ON audit_logs WHEN NEW.action = 'CREATE'
+        BEGIN SELECT RAISE(ABORT, 'Simulated failure'); END`);
       try {
         const result = await send("POST", "/patients", { sex: "F", patient_code: "ROLLBACK", chief_complaint: "Synthetic" });
         assert.equal(result.statusCode, 409);
@@ -100,7 +98,7 @@ test("API authorization, validation, persistence and concurrent workflows", { sk
         assert.equal(await count("patient_queues"), 3);
         assert.equal(await count("event_logs"), 3);
         assert.equal(await count("audit_logs"), 5);
-      } finally { await pool.query("ALTER TABLE audit_logs DROP CONSTRAINT simulated_failure"); }
+      } finally { db.exec("DROP TRIGGER simulated_failure"); }
     });
 
     await t.test("clinical permissions, concurrent bay assignment and discharge", async () => {
@@ -130,7 +128,7 @@ test("API authorization, validation, persistence and concurrent workflows", { sk
       assert.equal((await send("POST", "/encounters/" + id + "/discharge", {}, "clinical")).statusCode, 200);
       assert.equal((await send("GET", "/treatment-bays")).json().data.rows[0].status, "available");
       assert.equal((await send("GET", "/staff/" + staff.id)).json().data.availability, "Available");
-      assert.equal((await pool.query("SELECT count(*)::int total FROM patient_assignments WHERE released_at IS NULL")).rows[0].total, 0);
+      assert.equal(db.prepare("SELECT count(*) AS total FROM patient_assignments WHERE released_at IS NULL").get()?.total, 0);
     });
 
     await t.test("reprioritize, release and notification recipient scope", async () => {
@@ -146,10 +144,8 @@ test("API authorization, validation, persistence and concurrent workflows", { sk
       assert.equal((await send("POST", release, undefined, "clinical")).statusCode, 409);
       assert.equal((await send("GET", "/queues?status=waiting")).json().data.rows[0].priority, 1);
 
-      const notification = (await pool.query(
-        "INSERT INTO notifications(recipient_id,title,message) VALUES ($1,$2,$3) RETURNING id",
-        ["clinical", "Synthetic notice", "Synthetic text"],
-      )).rows[0];
+      const notification = db.prepare("INSERT INTO notifications(recipient_id,title,message) VALUES (?,?,?) RETURNING id")
+        .get("clinical", "Synthetic notice", "Synthetic text")!;
       const path = "/notifications/" + notification.id + "/read";
       assert.equal((await send("GET", "/notifications", undefined, "registration")).json().data.total, 0);
       assert.equal((await send("PATCH", path, undefined, "registration")).statusCode, 404);
@@ -168,19 +164,31 @@ test("API authorization, validation, persistence and concurrent workflows", { sk
       assert.equal(outcomes.filter((result) => result.statusCode === 409).length, 7);
       assert.equal((await send("GET", path)).json().data.quantity_available, 0);
       assert.equal(await count("resource_transactions"), 2);
-      await assert.rejects(pool.query("UPDATE resource_transactions SET quantity_delta=0"), { code: "23514" });
-      await assert.rejects(pool.query("UPDATE resources SET quantity_available=-1"), { code: "23514" });
+      assert.throws(() => db.exec("UPDATE resource_transactions SET quantity_delta=0"), { code: "ERR_SQLITE_ERROR" });
+      assert.throws(() => db.exec("UPDATE resources SET quantity_available=-1"), { code: "ERR_SQLITE_ERROR" });
     });
 
-    const restarted = await buildApp(pool, auth);
+    db.exec(`INSERT INTO patient_records(id, patient_code, first_name, sex)
+      VALUES (9007199254740993, 'WIDE-ID', 'Élodie', 'F')`);
+    await app.close();
+    db.close();
+    const reopened = connect(filename);
+    const restarted = await buildApp(reopened, auth);
     try {
       const result = await restarted.inject({ url: "/api/v1/patients?search=SYNTH-1", headers: { authorization: "Bearer " + credentials.admin } });
       assert.equal(result.json().data.total, 1);
-    } finally { await restarted.close(); }
+      const wideId = await restarted.inject({ url: "/api/v1/patients?search=ÉLODIE", headers: { authorization: "Bearer " + credentials.admin } });
+      const row = wideId.json().data.rows[0];
+      assert.equal(row.id, "9007199254740993");
+      assert.equal(row.is_unidentified, false);
+    } finally {
+      await restarted.close();
+      reopened.close();
+    }
   } finally { await app.close(); }
 }));
 
-test("import a SQLite snapshot and rerun PostgreSQL migrations", { skip: !url }, async () => isolated(async (pool) => {
+test("import a SQLite snapshot and rerun API SQLite migrations", async () => isolated(async (destination) => {
   const directory = await mkdtemp(join(tmpdir(), "triflow-import-"));
   const filename = join(directory, "fixture.db");
   try {
@@ -203,11 +211,11 @@ test("import a SQLite snapshot and rerun PostgreSQL migrations", { skip: !url },
       const record = sqlite.prepare("SELECT operationalPatientId FROM EREncounters WHERE patientRecordId=?").get(patient);
       await createPatientFlow(db).triage(String(record?.operationalPatientId), 3, { id: "legacy-user", role: "admin" });
     } finally { sqlite.close(); }
-    await migrate(pool);
-    await importSqlite(pool, filename, "admin");
-    await migrate(pool);
-    await assert.rejects(importSqlite(pool, filename, "admin"), /empty migrated destination/);
-    const api = service(pool, { id: "admin", role: "admin" });
+    migrate(destination);
+    importSqlite(destination, filename, "admin");
+    migrate(destination);
+    assert.throws(() => importSqlite(destination, filename, "admin"), /empty migrated destination/);
+    const api = service(destination, { id: "admin", role: "admin" });
     const patients = await api.list("patient_records", { search: "MIGRATION-SYNTHETIC" });
     assert.equal(patients.total, 1);
     const details = await api.details(patients.rows[0].id, {});

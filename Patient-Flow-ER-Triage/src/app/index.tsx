@@ -1,6 +1,6 @@
 import { localMode } from "../api/client";
 import { BedDouble, ClipboardList, Clock, HeartPulse, LogIn, LogOut, Users } from "lucide-react-native";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, useWindowDimensions, View } from "react-native";
 import { EventLog } from "../components/EventLog";
 import PipelineStep from "../components/common/PipelineStep";
 import StatCard from "../components/common/StatCard";
@@ -9,6 +9,9 @@ import { useSimulation } from "../components/SimulationProvider";
 /** Shows current shift metrics, patient distribution, and recent activity. */
 export default function Dashboard() {
   const { patients, events, simTime, metrics } = useSimulation();
+  const { width } = useWindowDimensions();
+  const mobile = width < 768;
+  const metricWidth = width >= 1024 ? "24%" : "48%";
   const arrivals = patients.filter((patient) => patient.status === "triage" && (localMode ? patient.arrivalTs === simTime : simTime - patient.arrivalTs <= 3));
   const triage = patients.filter((patient) => patient.status === "triage").length - arrivals.length;
   const admitted = metrics.admitted ?? patients.filter((patient) => patient.status === "admitted").length;
@@ -31,35 +34,37 @@ export default function Dashboard() {
   ];
 
   return (
-    <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, gap: 16 }}>
+    <ScrollView className="flex-1" contentContainerStyle={{ padding: mobile ? 12 : 16, gap: mobile ? 12 : 14 }}>
       <View className="flex-row flex-wrap items-start justify-between gap-2">
         <View>
-          <Text accessibilityRole="header" className="text-2xl font-bold text-slate-900">Dashboard</Text>
-          <Text className="mt-1 text-sm text-slate-600">Emergency department patient flow</Text>
+          <Text accessibilityRole="header" className="text-xl font-bold text-slate-900">Dashboard</Text>
+          <Text className="mt-0.5 text-xs text-slate-600">Emergency department patient flow</Text>
         </View>
-        <Text className="rounded-full bg-teal-100 px-3 py-1 text-xs font-semibold text-teal-900">
+        <Text className="rounded-full bg-teal-100 px-2.5 py-1 text-[11px] font-semibold text-teal-900">
           {localMode ? `Simulated shift · T+${simTime}s` : "Shared ER dashboard"}
         </Text>
       </View>
 
-      <View className="flex-row flex-wrap gap-3">
+      <View className="flex-row flex-wrap justify-between gap-y-2.5">
         {cards.map((metric) => (
-          <View key={metric.title} style={{ flexBasis: 196, flexGrow: 1, maxWidth: "100%" }}>
+          <View key={metric.title} style={{ width: metricWidth }}>
             <StatCard {...metric} />
           </View>
         ))}
       </View>
 
-      <View className="gap-3 rounded-[20px] border border-slate-200 bg-white p-4">
-        <Text accessibilityRole="header" className="text-base font-semibold text-slate-900">Patient Flow Overview</Text>
-        <View className="flex-row flex-wrap gap-3">
+      <View className="gap-2.5 rounded-xl border border-slate-200 bg-white p-3">
+        <View className="flex-row items-center justify-between">
+          <Text accessibilityRole="header" className="text-sm font-semibold text-slate-900">Patient Flow Overview</Text>
+          <Text className="text-[11px] text-slate-500">Admitted · {admitted}</Text>
+        </View>
+        <ScrollView horizontal={mobile} showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {stages.map((stage, index) => (
-            <View key={stage.label} className="rounded-xl bg-slate-50 p-2" style={{ flexBasis: 158, flexGrow: 1 }}>
-              <PipelineStep {...stage} label={`${index + 1}. ${stage.label}`} isLast />
+            <View key={stage.label} className="rounded-lg bg-slate-50 p-2" style={{ width: mobile ? 132 : undefined, flex: mobile ? undefined : 1 }}>
+              <PipelineStep {...stage} label={`${index + 1}. ${stage.label}`} isLast={index === stages.length - 1} />
             </View>
           ))}
-        </View>
-        <Text className="text-xs text-slate-600">Admitted to hospital · {admitted}</Text>
+        </ScrollView>
       </View>
 
       <EventLog events={events} />

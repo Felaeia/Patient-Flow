@@ -36,13 +36,13 @@ function SidebarItem({ destination, active, collapsed, onNavigate }: {
           onHoverOut={() => setHovered(false)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
-          className={`min-h-12 flex-row items-center gap-3 rounded-xl border px-3
+          className={`min-h-11 flex-row items-center gap-2.5 rounded-lg border px-2.5
             ${focused ? "border-teal-300" : "border-transparent"}
             ${active ? "bg-teal-950" : hovered ? "bg-slate-800" : "bg-slate-900"}`}
         >
           <Icon size={20} color={active ? "#5eead4" : "#cbd5e1"} />
           {!collapsed && (
-            <Text className={`flex-1 text-sm font-semibold ${active ? "text-teal-200" : "text-slate-200"}`}>
+            <Text className={`flex-1 text-[13px] font-semibold ${active ? "text-teal-200" : "text-slate-200"}`}>
               {label}
             </Text>
           )}
@@ -91,7 +91,7 @@ export function Sidebar({ collapsed = false, onToggle, onClose }: {
             accessibilityLabel="Admin navigation"
             accessibilityState={{ expanded: adminOpen }}
             onPress={() => setAdminOpen((value) => !value)}
-            className={`min-h-12 flex-row items-center gap-3 rounded-xl px-3 ${pathname.startsWith("/admin") ? "bg-slate-800" : ""}`}
+            className={`min-h-11 flex-row items-center gap-2.5 rounded-lg px-2.5 ${pathname.startsWith("/admin") ? "bg-slate-800" : ""}`}
           >
             <ShieldCheck size={20} color={pathname.startsWith("/admin") ? "#5eead4" : "#cbd5e1"} />
             {!collapsed && <><Text className="flex-1 text-sm font-bold text-slate-200">Admin</Text>{adminOpen ? <ChevronDown size={17} color="#cbd5e1" /> : <ChevronRight size={17} color="#cbd5e1" />}</>}
@@ -105,8 +105,8 @@ export function Sidebar({ collapsed = false, onToggle, onClose }: {
   );
 
   return (
-    <View className="bg-slate-900 px-2 py-3" style={{ width: collapsed ? 68 : 248 }}>
-      <View className={`mb-4 items-center gap-2 ${collapsed ? "" : "flex-row px-2"}`}>
+    <View className="bg-slate-900 px-2 py-2.5" style={{ width: collapsed ? 68 : 208 }}>
+      <View className={`mb-3 items-center gap-2 ${collapsed ? "" : "flex-row px-1"}`}>
         <View className="h-9 w-9 items-center justify-center rounded-xl bg-teal-900">
           <HeartPulse size={20} color="#99f6e4" />
         </View>
