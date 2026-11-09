@@ -1,317 +1,210 @@
+<div align="center">
+
 # TriFlow ER Triage
 
-TriFlow is an emergency department dashboard for managing patient registration, triage, queues, treatment bays, staff assignments, inventory, and operational activity.
+### Emergency Triage & Patient Flow Management System
 
-The project contains an Expo and React Native frontend, a Fastify and TypeScript API, and a SQLite database for local development and lightweight deployments.
+[![React Native](https://img.shields.io/badge/React_Native-Mobile_%26_Web-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactnative.dev/)
+[![Expo](https://img.shields.io/badge/Expo-Development_Builds-000020?style=for-the-badge&logo=expo&logoColor=white)](https://expo.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Frontend_%26_API-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Fastify](https://img.shields.io/badge/Fastify-REST_API-000000?style=for-the-badge&logo=fastify&logoColor=white)](https://fastify.dev/)
+[![SQLite](https://img.shields.io/badge/SQLite-Data_Storage-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://sqlite.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-24%2B-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 
-## Features
+[Overview](#overview) ·
+[Workflow](#the-er-workflow) ·
+[Quick Start](#quick-start) ·
+[User Guide](#station--module-guide) ·
+[Device Setup](#shared-device--network-setup) ·
+[Database](#database--operating-modes) ·
+[API](#api-reference) ·
+[Testing](#verification--load-testing)
 
-- Patient registration and encounter history
-- Emergency Severity Index triage and queue prioritization
-- Treatment-bay availability and assignment
-- Staff assignment, admission, and discharge workflows
-- Resource and inventory management
-- Dashboard metrics, event logs, notifications, and audit logs
-- Role-aware access for registration, clinical, admin, and viewer users
-- Responsive web interface for mobile, tablet, and desktop
-- Automatic local administrator sign-in during development
-- SQLite persistence with transactional workflows and migrations
+</div>
 
-## Application modules
+---
 
-| Module | Purpose |
-| --- | --- |
-| Dashboard | View patient totals, queue status, bay capacity, and recent activity |
-| Inbox | Review encounters and record ESI triage assessments |
-| Waiting Room | Monitor encounters waiting for treatment |
-| Treatment Bays | Assign bays and staff, then admit or discharge encounters |
-| Staff and Resources | Manage staff availability and resource inventory |
-| Administration | Manage patients, treatment bays, staff, and resources |
+## Overview
 
-## Technology stack
+**TriFlow ER Triage** is an emergency department workflow application for managing patient registration, triage, waiting queues, treatment bay capacity, staff assignments, resources, and patient disposition.
 
-| Area | Technology |
-| --- | --- |
-| Frontend | Expo, React Native, Expo Router, TypeScript |
-| Web | React Native Web, NativeWind |
-| Backend | Fastify, TypeScript |
-| Database | SQLite with Node's built-in `node:sqlite` driver |
-| Testing | Node test runner, TypeScript checks, Expo lint, k6 |
-| Runtime | Node.js 24.3+ or Node.js 26.x |
+The application supports a **shared API mode** for coordinated work across clients and a separate **local simulation mode** for development, demonstration, and testing.
 
-## Architecture
+Its primary workflows include:
 
-In shared mode, the frontend calls protected `/api/v1` endpoints. The API validates permissions and commits workflow changes in SQLite transactions. Connected clients use the same server-side database.
+- **Registration staff** create patient identities and ER encounters.
+- **Clinical staff** record Emergency Severity Index (ESI) assessments, prioritize queues, assign treatment bays and staff, and record discharge or admission.
+- **Administrators** manage patients, bays, staff, resources, and operational audit records.
+- **Viewers** access a limited operational overview and queue information.
+
+> **Clinical use notice:** TriFlow's documented development configuration is not a production-ready clinical deployment. Real patient data requires production authentication, transport security, institutional policies, validation, monitoring, backups, and appropriate clinical oversight. Simulation-generated recommendations and progress indicators must not guide real patient care.
+
+---
+
+## The ER Workflow
 
 ```mermaid
 flowchart LR
-    U[Operator] --> F[Expo frontend]
-    F -->|HTTP JSON| A[Fastify API]
-    A --> D[(SQLite database)]
-    A --> M[Migration runner]
-    F -.->|Optional simulator mode| L[(Local Expo SQLite)]
+    A["1. Patient Registration<br/>Create patient and ER encounter"] --> B["2. Triage Assessment<br/>Record ESI and urgency"]
+    B --> C["3. Waiting Room<br/>Track and prioritize queue"]
+    C --> D["4. Treatment Assignment<br/>Allocate bay and staff"]
+    D --> E["5. Patient Disposition<br/>Discharge or admit"]
+    E --> F["6. Capacity Update<br/>Release assigned resources"]
 ```
 
-### Frontend
+In **shared mode**, these steps are carried out through explicit user actions and real timestamps. Patient registration deliberately **does not assign an ESI**; triage is a separate clinical step. A discharge or admission releases the encounter's active bay and staff assignments together.
 
-- `src/app` contains Expo Router screens.
-- `src/api` contains the API client and domain services.
-- `src/auth` manages the current operator and role-based access.
-- `src/components` contains dashboard and management UI.
-- `src/database` and `src/simulation` support the optional local simulator.
+---
 
-### Backend
+## Technology Stack
 
-- `server/src` contains Fastify routes, services, repositories, authentication, and migrations.
-- `server/migrations` contains SQLite schema migrations.
-- `server/data` contains the runtime SQLite database and is ignored by Git.
-- `server/load` contains k6 load-test scenarios.
+| Layer | Technology | Purpose |
+| :--- | :--- | :--- |
+| Client | React Native, Expo, TypeScript | Android, iOS, and web application |
+| Navigation | React Navigation | Stack, tab, and route navigation |
+| API | Fastify, TypeScript, Node.js 24+ | Shared application services and HTTP endpoints |
+| Shared storage | Node.js built-in SQLite driver | Central database accessed only through the API |
+| Local development storage | Expo SQLite | Per-device or per-browser simulation data |
+| API documentation | OpenAPI | Generated API contract at `/openapi.json` |
+| Load testing | Grafana k6 | Synthetic read/write and contention tests |
 
-## Repository structure
+For backend implementation details, see [`server/README.md`](server/README.md).
 
-```text
-Patient-Flow/
-├─ README.md
-└─ Patient-Flow-ER-Triage/
-   ├─ src/
-   ├─ tests/
-   ├─ server/
-   │  ├─ src/
-   │  ├─ migrations/
-   │  ├─ tests/
-   │  ├─ load/
-   │  ├─ data/
-   │  └─ package.json
-   ├─ package.json
-   └─ package-lock.json
-```
+---
 
-## Installation and setup
+## Quick Start
 
 ### Prerequisites
 
-Install the following before starting the project.
+- **Node.js 24 or later** for the API and database tests.
+- **npm** for dependency installation and commands.
+- **PowerShell** for the commands below (the project can also be developed using compatible shells).
+- A supported browser for Expo web, or an Android/iOS development environment for native builds.
+- An **Expo development build** for the configured native client; the project is not set up to run directly in Expo Go.
 
-- Git
-- Node.js 24.3 or later
-- npm
-- A web browser
+### 1. Start the backend API
 
-SQLite is provided by Node.js. The default web setup uses port `3000` for the API and port `8081` for Expo.
-
-### Clone the repository
-
-```sh
-git clone https://github.com/Felaeia/Patient-Flow.git
-cd Patient-Flow
-```
-
-If the repository is already available locally, open a terminal in its root directory.
-
-### Install dependencies
-
-The frontend and backend have separate package manifests and lockfiles.
-
-```sh
-npm --prefix Patient-Flow-ER-Triage install
-npm --prefix Patient-Flow-ER-Triage/server ci
-```
-
-Use `npm install` for the frontend and `npm ci` for the backend.
-
-## Running the project
-
-The backend and frontend run as separate processes during development.
-
-### Start the backend
-
-Open the first terminal in the repository root and run:
-
-```sh
-npm --prefix Patient-Flow-ER-Triage/server start
-```
-
-The API listens on `http://127.0.0.1:3000`, creates `Patient-Flow-ER-Triage/server/data/triflow.sqlite`, and applies migrations on startup.
-
-Check that the API is ready at [http://127.0.0.1:3000/ready](http://127.0.0.1:3000/ready).
-
-### Start the web application
-
-Open a second terminal in the repository root and run:
-
-```sh
-npm --prefix Patient-Flow-ER-Triage run web
-```
-
-Open [http://localhost:8081](http://localhost:8081). The local web build connects to the API and signs in as the development administrator automatically.
-
-Keep both terminals running while using the application. Press Ctrl+C in each terminal to stop the services.
-
-### Run a native development build
-
-Use the following commands from the repository root.
-
-```sh
-npm --prefix Patient-Flow-ER-Triage run android
-npm --prefix Patient-Flow-ER-Triage run ios
-```
-
-The Android command requires the Android toolchain. The iOS command requires macOS and Xcode. Set `EXPO_PUBLIC_TRIFLOW_API_URL` to an API address reachable from the emulator or device before launching Expo.
-
-## Usage
-
-1. Create a treatment bay and staff member from the admin screens if the database is empty.
-2. Register a fictional patient in **Patient Management**.
-3. Open **Inbox** and record the patient's ESI assessment.
-4. Select the waiting encounter and assign a treatment bay.
-5. Open the encounter in **Treatment Bays** to assign staff, admit the patient, or discharge the patient.
-
-## Configuration
-
-### Backend environment variables
-
-| Variable | Purpose | Default |
-| --- | --- | --- |
-| `SQLITE_PATH` | SQLite database file path | `server/data/triflow.sqlite` |
-| `HOST` | API bind address | `127.0.0.1` |
-| `PORT` | API port | `3000` |
-| `CORS_ORIGINS` | Comma-separated allowed web origins | Local Expo origins |
-| `DEV_TOKENS` | Additional development tokens and roles | None |
-| `AUTH_ADAPTER` | Production ES module exporting `authenticate` | Required in production |
-| `LEGACY_NOTIFICATION_RECIPIENT` | Actor for imported notifications | None |
-
-Example PowerShell configuration:
+From the repository root, open **Terminal 1**:
 
 ```powershell
-$env:SQLITE_PATH = "./data/triflow.sqlite"
-$env:CORS_ORIGINS = "http://localhost:8081,http://127.0.0.1:8081"
-npm --prefix Patient-Flow-ER-Triage/server start
+cd server
+npm ci
+npm start
 ```
 
-Relative `SQLITE_PATH` values resolve from the directory where the API process starts.
+The API applies migrations and creates its SQLite database at `server/data/triflow.sqlite` by default. In local development, the included development authentication adapter uses an administrator identity.
 
-### Frontend environment variables
-
-| Variable | Purpose |
-| --- | --- |
-| `EXPO_PUBLIC_TRIFLOW_API_URL` | API base URL for a device or non-default server |
-| `EXPO_PUBLIC_TRIFLOW_TOKEN` | Build-time credential for automatic sign-in |
-| `EXPO_PUBLIC_TRIFLOW_ROLE` | Local simulator role such as `registration`, `clinical`, or `viewer` |
-| `EXPO_PUBLIC_TRIFLOW_MODE` | Set to `local` to use the device-local simulator |
-| `EXPO_PUBLIC_TRIFLOW_SEED` | Set to `1` to seed local simulator data once |
-
-Restart Expo after changing frontend environment variables.
-
-## Authentication and roles
-
-Local development automatically uses the administrator credential `triflow-local-development-admin`.
-
-For production, set `NODE_ENV=production` and provide an `AUTH_ADAPTER` that verifies the `Authorization: Bearer <token>` header and maps it to a stable actor ID and role. Use HTTPS, restrict CORS to trusted origins, protect the SQLite file, and configure backups, monitoring, and an identity provider before handling real patient data.
-
-## Database and migrations
-
-The API creates the SQLite database and runs migrations at startup. Run migrations explicitly from the repository root with the following command.
-
-```sh
-npm --prefix Patient-Flow-ER-Triage/server run migrate
-```
-
-SQLite uses WAL mode and foreign-key enforcement. Registration, triage, assignment, inventory, admission, and discharge workflows run in transactions.
-
-To import a legacy simulator snapshot, use an empty destination database:
+Check the server in another terminal:
 
 ```powershell
-$env:SQLITE_PATH = "./data/imported.sqlite"
-$env:LEGACY_NOTIFICATION_RECIPIENT = "<recipient-actor-id>"
-npm --prefix Patient-Flow-ER-Triage/server run migrate
-npm --prefix Patient-Flow-ER-Triage/server run import:sqlite -- "C:\path\to\snapshot.db"
+Invoke-RestMethod http://127.0.0.1:3000/health
+Invoke-RestMethod http://127.0.0.1:3000/ready
 ```
 
-Review record counts, active assignments, inventory, and historical records after import. The importer does not provide offline synchronization.
+- `/health` checks process liveness.
+- `/ready` checks database connectivity and the migration ledger.
 
-## API reference
+### 2. Start the Expo client
 
-Health and documentation endpoints:
-
-- `GET /health` reports process liveness.
-- `GET /ready` checks database and migration readiness.
-- `GET /openapi.json` returns the generated OpenAPI document.
-
-Protected endpoints are under `/api/v1`. Successful responses use a `data` property. Errors include `status`, `code`, `message`, `requestId`, and optional validation details.
-
-| Area | Main endpoints |
-| --- | --- |
-| Identity and dashboard | `GET /me`, `/dashboard`, `/events` |
-| Patients | `GET/POST /patients`, `GET/PATCH /patients/{patientId}` |
-| Encounters | `GET/POST /patients/{patientId}/encounters`, `GET /encounters/{encounterId}` |
-| Clinical workflow | `POST /encounters/{id}/triage`, `/bay-assignment`, `/staff-assignments`, `/discharge` |
-| Queues and bays | `GET /queues`, `PATCH /queues/{id}`, `GET/POST /treatment-bays` |
-| Staff and inventory | `GET/POST /staff`, `GET/POST /resources`, resource adjustments |
-| Notifications and audit | `GET /notifications`, notification read actions, `GET /audit-logs` |
-
-See the [backend README](Patient-Flow-ER-Triage/server/README.md) for the complete route contract and load-test instructions.
-
-## Testing and quality checks
-
-Run backend checks from the repository root:
-
-```sh
-npm --prefix Patient-Flow-ER-Triage/server run check
-npm --prefix Patient-Flow-ER-Triage/server test
-```
-
-Run frontend checks from the Expo project directory:
-
-```sh
-cd Patient-Flow-ER-Triage
-npx tsc --noEmit
-npm run lint
-npm run test:database
-npx expo export --platform web
-```
-
-The frontend database tests use a temporary SQLite file and cover migrations, foreign keys, patient records, assignments, notifications, seeding, and persistence. See the [backend load-testing guide](Patient-Flow-ER-Triage/server/README.md#verification-and-load) for k6 scenarios.
-
-## Deployment
-
-SQLite supports local development, demos, single-operator use, and lightweight single-instance deployments with persistent disk. Run one API instance, keep the database directory writable, and use SQLite-aware backups.
-
-For multiple workstations, high write concurrency, or hospital production workloads, place the API behind an authenticated gateway and consider a managed relational database such as PostgreSQL. Keep the frontend connected through the API contract.
-
-## Troubleshooting
-
-### The app asks for an API URL
-
-Start the backend first and confirm that [http://127.0.0.1:3000/ready](http://127.0.0.1:3000/ready) responds. For a custom API address, set `EXPO_PUBLIC_TRIFLOW_API_URL` and restart Expo.
-
-### The app asks for bearer credentials
-
-Use the local development server for automatic sign-in. For an exported build, provide `EXPO_PUBLIC_TRIFLOW_TOKEN` and configure the server's production `AUTH_ADAPTER`.
-
-### CORS errors appear in the browser
-
-Set `CORS_ORIGINS` to the exact origin in the browser address bar, including the port, then restart the API.
-
-### Port 3000 is already in use
-
-Choose another port and point Expo to it:
+From the **repository root**, open **Terminal 2**:
 
 ```powershell
-$env:PORT = "3001"
-npm --prefix Patient-Flow-ER-Triage/server start
+npm ci
+npm run web
 ```
 
-In the Expo terminal:
+Open **http://localhost:8081**. In the documented local development configuration, the web client uses **http://127.0.0.1:3000** as its API.
 
-```powershell
-$env:EXPO_PUBLIC_TRIFLOW_API_URL = "http://127.0.0.1:3001"
-npm --prefix Patient-Flow-ER-Triage run web
+## Shared Device & Network Setup
+
+In **shared API mode**, all connected clients read and write through a single Fastify API, which owns the shared SQLite database. This differs from local Expo SQLite, where each device or browser profile has separate data.
+
+```text
+                       [ Hospital / Test Network ]
+                                  |
+                    +-------------+-------------+
+                    |                           |
+              [ API Host ]               [ Client Devices ]
+            Fastify + SQLite          Registration / Clinical /
+            HTTP API :3000            Administration / Viewer
+                    |                           |
+          server/data/triflow.sqlite     Access the reachable API
 ```
 
-### The database is locked or unavailable
+To connect a second device or use a different API port:
 
-Ensure only the intended API process writes to the file, verify that its directory is writable, and use an online backup or clean shutdown before copying the database.
+1. Configure the API's `HOST` and `PORT` to listen on the intended interface; the default `127.0.0.1:3000` is reachable only from the host computer.
+2. Set `EXPO_PUBLIC_TRIFLOW_API_URL` in the client to the API URL reachable by that device.
+3. For browser clients, set `CORS_ORIGINS` to the **exact** allowed frontend origins.
+4. Use appropriate firewall rules, **HTTPS**, and a real production authentication adapter before sharing access beyond the host's local development environment.
+5. Verify `/health`, `/ready`, and a role-authorized workflow from the intended client network.
 
-## Contributing
+**Connectivity behavior:** The Expo client polls the shared dashboard approximately every three seconds. If the API connection fails, the client displays an error and retry action; refresh pauses, and the API remains the source of record. **No offline synchronization is implemented.**
 
-Open a [GitHub issue](https://github.com/Felaeia/Patient-Flow/issues) with reproduction steps for a bug or a description of a proposed change. Pull requests should describe the change and include the checks that passed. Use fictional patient data in examples and screenshots.
+> **Not a one-click LAN launcher:** The provided TriFlow documentation does not describe a `run.bat`, automatic IP detection, or a bundled Windows service. Those StudioFlow features have **not** been assumed to exist in TriFlow.
+
+### Development roles
+
+In local simulation mode, the development role defaults to `admin`. Set `EXPO_PUBLIC_TRIFLOW_ROLE` to `registration`, `clinical`, or `viewer` to test client route and service authorization. This role override is a **development-only adapter** and does not secure a real deployment.
+
+The shared API's development adapter includes local administrator access and optional `DEV_TOKENS` for role testing. It is **not allowed to start in production**.
+
+### Production requirements
+
+Before using real patient information:
+
+- Set `NODE_ENV=production` and supply `AUTH_ADAPTER` as an absolute path to an ES module exporting `authenticate` (see `server/src/auth.ts`).
+- Verify credentials server-side and map them to a stable actor ID and authorized role. Client-provided roles never grant access.
+- Enforce permissions at API/service level, not merely through hidden screens.
+- Serve the app and API behind **HTTPS**, restrict API origins, and keep SQLite files accessible only to the API account.
+- Configure site-appropriate monitoring, rate limits, backups, retention, and clinical safety procedures.
+- Use an institutional identity provider and approved access policies before processing real patient data.
+
+### Endpoints
+
+All routes below are relative to `/api/v1`.
+
+| Area | Endpoints |
+| :--- | :--- |
+| **Identity & Overview** | `GET /me`, `GET /dashboard`, `GET /events` |
+| **Patients** | `GET/POST /patients`, `GET/PATCH /patients/{patientId}`, `GET/POST /patients/{patientId}/encounters` |
+| **Encounters** | `GET /encounters/{encounterId}`; `POST /encounters/{encounterId}/triage`, `/bay-assignment`, `/staff-assignments`, `/discharge` |
+| **Queues** | `GET /queues`, `PATCH /queues/{queueId}` |
+| **Treatment Bays** | `GET/POST /treatment-bays`, `PATCH /treatment-bays/{bayId}` |
+| **Assignments** | `POST /assignments/{assignmentId}/release` |
+| **Staff** | `GET/POST /staff`, `GET/PATCH /staff/{staffId}` |
+| **Resources** | `GET/POST /resources`, `GET/PATCH /resources/{resourceId}`, `POST /resources/{resourceId}/adjustments` |
+| **Notifications & Audit** | `GET /notifications`, `PATCH /notifications/{notificationId}/read`, `GET /audit-logs` |
+
+## Available Commands
+
+| Context | Command | Description |
+| :--- | :--- | :--- |
+| **API** (`server/`) | `npm ci` | Install pinned backend dependencies. |
+| **API** (`server/`) | `npm start` | Start the Fastify server. |
+| **API** (`server/`) | `npm run migrate` | Apply database migrations explicitly. |
+| **API** (`server/`) | `npm run check` | Run backend checks. |
+| **API** (`server/`) | `npm test` | Run backend tests. |
+| **API** (`server/`) | `npm run import:sqlite -- "<snapshot>"` | Import a legacy SQLite snapshot into an empty target. |
+| **Client** (Patient-Flow-ER-Triage) | `npm ci` | Install pinned frontend dependencies. |
+| **Client** (Patient-Flow-ER-Triage) | `npm start` | Start Expo development server. |
+| **Client** (Patient-Flow-ER-Triage) | `npm run web` | Start Expo web. |
+| **Client** (Patient-Flow-ER-Triage) | `npm run android` | Run Android development build. |
+| **Client** (Patient-Flow-ER-Triage) | `npm run ios` | Run iOS development build. |
+| **Client** (Patient-Flow-ER-Triage) | `npx tsc --noEmit` | Check TypeScript types. |
+| **Client** (Patient-Flow-ER-Triage) | `npx expo lint` | Run Expo lint checks. |
+| **Client** (Patient-Flow-ER-Triage) | `npm run test:database` | Verify local database behavior. |
+
+---
+
+## Resources
+
+- [TriFlow backend guide](server/README.md)
+- [Expo documentation](https://docs.expo.dev/)
+- [React Navigation documentation](https://reactnavigation.org/)
+- [Expo SQLite documentation](https://docs.expo.dev/versions/v56.0.0/sdk/sqlite/)
+- [Fastify documentation](https://fastify.dev/)
+- [SQLite documentation](https://sqlite.org/docs.html)
+- [Grafana k6 documentation](https://grafana.com/docs/k6/latest/)
+
+Some demonstration assets are sourced from [Lucide](https://lucide.dev/).
