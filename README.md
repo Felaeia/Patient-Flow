@@ -17,6 +17,17 @@ The project contains an Expo and React Native frontend, a Fastify and TypeScript
 - Automatic local administrator sign-in during development
 - SQLite persistence with transactional workflows and migrations
 
+## Application modules
+
+| Module | Purpose |
+| --- | --- |
+| Dashboard | View patient totals, queue status, bay capacity, and recent activity |
+| Inbox | Review encounters and record ESI triage assessments |
+| Waiting Room | Monitor encounters waiting for treatment |
+| Treatment Bays | Assign bays and staff, then admit or discharge encounters |
+| Staff and Resources | Manage staff availability and resource inventory |
+| Administration | Manage patients, treatment bays, staff, and resources |
+
 ## Technology stack
 
 | Area | Technology |
@@ -28,7 +39,7 @@ The project contains an Expo and React Native frontend, a Fastify and TypeScript
 | Testing | Node test runner, TypeScript checks, Expo lint, k6 |
 | Runtime | Node.js 24.3+ or Node.js 26.x |
 
-## Project architecture
+## Architecture
 
 In shared mode, the frontend calls protected `/api/v1` endpoints. The API validates permissions and commits workflow changes in SQLite transactions. Connected clients use the same server-side database.
 
@@ -75,14 +86,14 @@ Patient-Flow/
    └─ package-lock.json
 ```
 
-## Getting started
+## Installation and setup
 
 ### Prerequisites
 
 Install the following before starting the project.
 
 - Git
-- Node.js 24.3 or later in the 24.x line, or Node.js 26.x
+- Node.js 24.3 or later
 - npm
 - A web browser
 
@@ -106,7 +117,11 @@ npm --prefix Patient-Flow-ER-Triage install
 npm --prefix Patient-Flow-ER-Triage/server ci
 ```
 
-The frontend uses `npm install` because its current lockfile must be reconciled with the dependency versions in `package.json`. The backend uses `npm ci` for a clean lockfile-based installation.
+Use `npm install` for the frontend and `npm ci` for the backend.
+
+## Running the project
+
+The backend and frontend run as separate processes during development.
 
 ### Start the backend
 
@@ -143,7 +158,7 @@ npm --prefix Patient-Flow-ER-Triage run ios
 
 The Android command requires the Android toolchain. The iOS command requires macOS and Xcode. Set `EXPO_PUBLIC_TRIFLOW_API_URL` to an API address reachable from the emulator or device before launching Expo.
 
-## Basic workflow
+## Usage
 
 1. Create a treatment bay and staff member from the admin screens if the database is empty.
 2. Register a fictional patient in **Patient Management**.
@@ -187,13 +202,13 @@ Relative `SQLITE_PATH` values resolve from the directory where the API process s
 
 Restart Expo after changing frontend environment variables.
 
-## Authentication
+## Authentication and roles
 
 Local development automatically uses the administrator credential `triflow-local-development-admin`.
 
 For production, set `NODE_ENV=production` and provide an `AUTH_ADAPTER` that verifies the `Authorization: Bearer <token>` header and maps it to a stable actor ID and role. Use HTTPS, restrict CORS to trusted origins, protect the SQLite file, and configure backups, monitoring, and an identity provider before handling real patient data.
 
-## Data and migrations
+## Database and migrations
 
 The API creates the SQLite database and runs migrations at startup. Run migrations explicitly from the repository root with the following command.
 
@@ -214,7 +229,7 @@ npm --prefix Patient-Flow-ER-Triage/server run import:sqlite -- "C:\path\to\snap
 
 Review record counts, active assignments, inventory, and historical records after import. The importer does not provide offline synchronization.
 
-## HTTP API
+## API reference
 
 Health and documentation endpoints:
 
@@ -236,7 +251,7 @@ Protected endpoints are under `/api/v1`. Successful responses use a `data` prope
 
 See the [backend README](Patient-Flow-ER-Triage/server/README.md) for the complete route contract and load-test instructions.
 
-## Testing
+## Testing and quality checks
 
 Run backend checks from the repository root:
 
